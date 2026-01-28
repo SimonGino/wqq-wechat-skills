@@ -1,0 +1,31 @@
+{
+  "name": "wqq-wechat-skills",
+  "owner": {
+    "name": "wqq",
+    "email": ""
+  },
+  "metadata": {
+    "description": "Personal skills for WeChat tutorial article creation",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "content-workflows",
+      "description": "Workflow skills for drafting WeChat tutorial articles",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/wqq-wechat-article"
+      ]
+    },
+    {
+      "name": "ai-backends",
+      "description": "AI generation backends used by workflows",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/wqq-image-gen"
+      ]
+    }
+  ]
+}

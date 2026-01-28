@@ -1,0 +1,404 @@
+import path from "node:path";
+import process from "node:process";
+import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
+import type { CliArgs, Source, SourceMetadata } from "./types";
+import { formatError } from "../../shared/retry";
+
+function printUsage(): void {
+  console.log(`Usage:
+  npx -y bun scripts/main.ts --sources sources/*.md --summary "一句话总结"
+  npx -y bun scripts/main.ts --sources sources/*.md --summary "..." --outline "要点1,要点2,要点3"
+
+Options:
+  --sources <files...>  Source markdown files (required)
+  --summary <text>      One-sentence summary (required)
+  --outline <text>      Optional outline points (comma-separated)
+  --outdir <path>       Output directory (default: wechat-article/<topic-slug>)
+  -h, --help            Show help
+
+Output:
+  <outdir>/sources/          Copied source files
+  <outdir>/01-sources.md     Merged sources view
+  <outdir>/02-outline.md     Tutorial outline
+  <outdir>/03-article.md     Final WeChat article
+  <outdir>/04-infographics/prompts.md  Infographic prompts
+
+Environment:
+  This script generates tutorial articles based on SKILL.md workflow.
+`);
+}
+
+function parseArgs(argv: string[]): CliArgs {
+  const out: CliArgs = {
+    sources: [],
+    summary: null,
+    outline: null,
+    outdir: null,
+    help: false,
+  };
+
+  const takeMany = (i: number): { items: string[]; next: number } => {
+    const items: string[] = [];
+    let j = i + 1;
+    while (j < argv.length) {
+      const v = argv[j];
+      if (!v || v.startsWith("-")) break;
+      items.push(v);
+      j++;
+    }
+    return { items, next: j - 1 };
+  };
+
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (!a) continue;
+
+    if (a === "--help" || a === "-h") {
+      out.help = true;
+      continue;
+    }
+
+    if (a === "--sources") {
+      const { items, next } = takeMany(i);
+      if (items.length === 0) throw new Error("Missing files for --sources");
+      out.sources.push(...items);
+      i = next;
+      continue;
+    }
+
+    if (a === "--summary") {
+      const v = argv[++i];
+      if (!v) throw new Error("Missing value for --summary");
+      out.summary = v;
+      continue;
+    }
+
+    if (a === "--outline") {
+      const v = argv[++i];
+      if (!v) throw new Error("Missing value for --outline");
+      out.outline = v;
+      continue;
+    }
+
+    if (a === "--outdir") {
+      const v = argv[++i];
+      if (!v) throw new Error("Missing value for --outdir");
+      out.outdir = v;
+      continue;
+    }
+
+    if (a.startsWith("-")) {
+      throw new Error(`Unknown option: ${a}`);
+    }
+  }
+
+  return out;
+}
+
+function generateTopicSlug(summary: string): string {
+  // Extract 2-4 keywords from summary
+  const words = summary
+    .toLowerCase()
+    .replace(/[^\u4e00-\u9fa5a-z0-9\s]/g, "")
+    .split(/\s+/)
+    .filter((w) => w.length > 1)
+    .slice(0, 4);
+
+  return words.join("-");
+}
+
+function generateOutputDir(summary: string, baseOutdir: string | null): string {
+  const slug = generateTopicSlug(summary);
+  const base = baseOutdir || path.join(process.cwd(), "wechat-article", slug);
+
+  // Check if exists, add timestamp if needed
+  try {
+    const stat = Bun.file(base);
+    if (stat.size >= 0) {
+      const timestamp = new Date()
+        .toISOString()
+        .replace(/[-:]/g, "")
+        .split(".")[0];
+      return `${base}-${timestamp}`;
+    }
+  } catch {
+    // Directory doesn't exist, use base
+  }
+
+  return base;
+}
+
+async function parseSourceFile(filePath: string): Promise<Source> {
+  const content = await readFile(filePath, "utf8");
+
+  // Parse YAML frontmatter
+  const yamlMatch = content.match(/^---\n([\s\S]*?)\n---\n/);
+  let metadata: SourceMetadata = { title: path.basename(filePath, ".md") };
+  let body = content;
+
+  if (yamlMatch) {
+    const yamlContent = yamlMatch[1];
+    const lines = yamlContent?.split("\n") || [];
+
+    for (const line of lines) {
+      const colonIdx = line.indexOf(":");
+      if (colonIdx === -1) continue;
+
+      const key = line.slice(0, colonIdx).trim().toLowerCase();
+      const value = line.slice(colonIdx + 1).trim();
+
+      if (key === "title") metadata.title = value;
+      else if (key === "url") metadata.url = value;
+      else if (key === "author") metadata.author = value;
+      else if (key === "date") metadata.date = value;
+    }
+
+    body = content.slice(yamlMatch[0].length);
+  }
+
+  return { metadata, content: body.trim() };
+}
+
+async function generateMergedSources(sources: Source[]): Promise<string> {
+  const parts: string[] = ["# 素材汇总\n"];
+
+  for (let i = 0; i < sources.length; i++) {
+    const src = sources[i];
+    if (!src) continue;
+
+    parts.push(`## 素材 ${i + 1}: ${src.metadata.title}\n`);
+
+    if (src.metadata.url) parts.push(`- 来源: ${src.metadata.url}`);
+    if (src.metadata.author) parts.push(`- 作者: ${src.metadata.author}`);
+    if (src.metadata.date) parts.push(`- 日期: ${src.metadata.date}`);
+
+    parts.push("\n---\n");
+    parts.push(src.content);
+    parts.push("\n\n");
+  }
+
+  parts.push("## 来源链接清单\n");
+  for (const src of sources) {
+    if (src.metadata.url) {
+      parts.push(`- [${src.metadata.title}](${src.metadata.url})`);
+    }
+  }
+
+  return parts.join("\n");
+}
+
+async function generateOutline(
+  summary: string,
+  outline: string | null,
+  sources: Source[],
+): Promise<string> {
+  const parts: string[] = ["# 文章大纲\n"];
+
+  parts.push(`## 一句话总结\n\n${summary}\n`);
+
+  if (outline) {
+    parts.push("\n## 要点\n");
+    const points = outline.split(",").map((p) => p.trim());
+    for (const point of points) {
+      parts.push(`- ${point}`);
+    }
+  }
+
+  parts.push("\n## 建议结构\n");
+  parts.push("1. 一句话总结");
+  parts.push("2. 你将学到什么");
+  parts.push("3. 适用场景");
+  parts.push("4. 前置条件");
+  parts.push("5. 核心步骤");
+  parts.push("6. 常见问题/排错");
+  parts.push("7. 总结");
+  parts.push("8. 参考链接");
+
+  return parts.join("\n");
+}
+
+async function generateArticle(
+  summary: string,
+  outline: string | null,
+  sources: Source[],
+): Promise<string> {
+  // This is a placeholder - in real workflow, Claude agent would fill this
+  const parts: string[] = [];
+
+  parts.push(`# ${summary}\n`);
+  parts.push("## 一句话总结\n");
+  parts.push(`${summary}\n`);
+  parts.push("\n## 你将学到什么\n");
+
+  if (outline) {
+    const points = outline.split(",").map((p) => p.trim());
+    for (const point of points) {
+      parts.push(`- ${point}`);
+    }
+  } else {
+    parts.push("- TODO: 填写学习要点");
+  }
+
+  parts.push("\n## 核心步骤\n");
+  parts.push("TODO: 根据 01-sources.md 和 02-outline.md，按教程模板填写\n");
+
+  parts.push("\n## 参考链接\n");
+  for (const src of sources) {
+    if (src.metadata.url) {
+      parts.push(`- [${src.metadata.title}](${src.metadata.url})`);
+    }
+  }
+
+  return parts.join("\n");
+}
+
+async function generateInfographicPrompts(summary: string): Promise<string> {
+  const parts: string[] = ["# 信息图生成提示词\n"];
+
+  parts.push("## 建议配图位置\n");
+  parts.push("1. 整体流程图/架构图");
+  parts.push("2. 核心步骤汇总卡片");
+  parts.push("3. 关键对比(Do/Don't)");
+  parts.push("4. 常见坑与排错流程\n");
+
+  parts.push("## 配图 1: 整体流程图\n");
+  parts.push('**位置**: 文章开头，"核心步骤"章节前');
+  parts.push("**目的**: 让读者快速了解整体流程");
+  parts.push("**比例**: 1:1 或 9:16");
+  parts.push("**Prompt**:\n");
+  parts.push("```");
+  parts.push(`Create a clean infographic flowchart about "${summary}". `);
+  parts.push("Use simple icons, arrows, and Chinese labels. ");
+  parts.push("Modern flat design, tech style, white background.");
+  parts.push("```\n");
+
+  parts.push("## 配图 2: 核心步骤卡片\n");
+  parts.push('**位置**: "核心步骤"章节内');
+  parts.push("**目的**: 总结关键步骤");
+  parts.push("**比例**: 1:1");
+  parts.push("**Prompt**:\n");
+  parts.push("```");
+  parts.push("Create a checklist-style infographic card. ");
+  parts.push("List 3-5 key steps with checkboxes. ");
+  parts.push("Use Chinese text, clean layout, pastel colors.");
+  parts.push("```\n");
+
+  parts.push("## 生成命令示例\n");
+  parts.push("```bash");
+  parts.push(
+    '/wqq-image-gen --prompt "..." --image 04-infographics/01-flowchart.png --ar 1:1',
+  );
+  parts.push("```");
+
+  return parts.join("\n");
+}
+
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv.slice(2));
+
+  if (args.help) {
+    printUsage();
+    return;
+  }
+
+  if (args.sources.length === 0) {
+    console.error("Error: --sources is required");
+    printUsage();
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!args.summary) {
+    console.error("Error: --summary is required");
+    printUsage();
+    process.exitCode = 1;
+    return;
+  }
+
+  // Parse source files
+  const sources: Source[] = [];
+  for (const srcPath of args.sources) {
+    const source = await parseSourceFile(srcPath);
+    sources.push(source);
+  }
+
+  // Generate output directory
+  const outdir = generateOutputDir(args.summary, args.outdir);
+  await mkdir(outdir, { recursive: true });
+  await mkdir(path.join(outdir, "sources"), { recursive: true });
+  await mkdir(path.join(outdir, "04-infographics"), { recursive: true });
+
+  // Copy source files
+  for (let i = 0; i < args.sources.length; i++) {
+    const srcPath = args.sources[i];
+    if (!srcPath) continue;
+    const content = await readFile(srcPath, "utf8");
+    const basename = path.basename(srcPath);
+    const destPath = path.join(
+      outdir,
+      "sources",
+      `${String(i + 1).padStart(2, "0")}-${basename}`,
+    );
+    await writeFile(destPath, content);
+  }
+
+  // Generate 01-sources.md
+  const mergedSources = await generateMergedSources(sources);
+  await writeFile(path.join(outdir, "01-sources.md"), mergedSources);
+
+  // Generate 02-outline.md
+  const outlineContent = await generateOutline(
+    args.summary,
+    args.outline,
+    sources,
+  );
+  await writeFile(path.join(outdir, "02-outline.md"), outlineContent);
+
+  // Generate 03-article.md (placeholder)
+  const articleContent = await generateArticle(
+    args.summary,
+    args.outline,
+    sources,
+  );
+  await writeFile(path.join(outdir, "03-article.md"), articleContent);
+
+  // Generate 04-infographics/prompts.md
+  const promptsContent = await generateInfographicPrompts(args.summary);
+  await writeFile(
+    path.join(outdir, "04-infographics", "prompts.md"),
+    promptsContent,
+  );
+
+  console.log(`✓ Created article structure in: ${outdir}`);
+  console.log(`✓ Files generated:`);
+  console.log(`  - 01-sources.md`);
+  console.log(`  - 02-outline.md`);
+  console.log(`  - 03-article.md (TODO: complete with tutorial content)`);
+  console.log(`  - 04-infographics/prompts.md`);
+  console.log(`\nNext steps:`);
+  console.log(
+    `1. Review and complete 03-article.md based on tutorial template`,
+  );
+  console.log(
+    `2. Generate infographics: /wqq-image-gen --prompt "..." --image <path>`,
+  );
+}
+
+main().catch((e) => {
+  console.error(`Error: ${formatError(e)}`);
+
+  // Additional debugging info for common errors
+  if (e instanceof Error) {
+    if (e.message.includes("ENOENT") || e.message.includes("not found")) {
+      console.error("\nTip: Check that all source files exist");
+      console.error("Example: --sources sources/*.md");
+    } else if (
+      e.message.includes("YAML") ||
+      e.message.includes("frontmatter")
+    ) {
+      console.error("\nTip: Check YAML frontmatter format in source files");
+    }
+  }
+
+  process.exit(1);
+});

@@ -1,0 +1,8 @@
+.wqq-skills/
+.baoyu-skills/
+.DS_Store
+**/.DS_Store
+node_modules/
+dist/
+bun.lockb
+wechat-article/

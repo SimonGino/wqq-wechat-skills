@@ -1,0 +1,14 @@
+{
+  "name": "wqq-wechat-skills",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Personal Claude Code skills for WeChat article workflow",
+  "scripts": {
+    "test": "bun test skills/**/*.test.ts",
+    "test:smoke": "./scripts/smoke-test.sh",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "devDependencies": {
+    "bun-types": "^1.3.7"
+  }
+}

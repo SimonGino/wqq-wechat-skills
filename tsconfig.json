@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    // Type checking
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // Module resolution
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ESNext",
+    "lib": ["ESNext"],
+
+    // Interop
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+
+    // Output
+    "noEmit": true,
+    "skipLibCheck": true,
+
+    // Bun-specific
+    "types": ["bun-types"],
+
+    // Paths
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "skills/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    ".wqq-skills",
+    ".baoyu-skills"
+  ]
+}
