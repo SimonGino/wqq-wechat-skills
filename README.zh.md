@@ -10,7 +10,35 @@
 - 生成教程风格的公众号 Markdown 正文
 - 生成信息图提示词并可选生成图片
 
+## 在 Claude Code 中使用
+
+### 使用 Skill 命令（推荐）
+
+最简单的方式是在 Claude Code 中直接使用 skill：
+
+1) 准备素材文件（带 YAML frontmatter 的 Markdown）
+2) 在 Claude Code 中运行：
+
+```
+/wqq-wechat-article
+```
+
+Claude 会：
+- 询问你的一句话总结和大纲
+- 读取你的素材文件
+- 自动生成完整的文章结构
+
+生成图片：
+
+```
+/wqq-image-gen
+```
+
+Claude 会询问提示词并生成图片。
+
 ## 推荐工作流（MVP）
+
+### 方式 1：在 Claude Code 中使用（推荐）
 
 1) 手动收集素材，保存为带 YAML frontmatter 的 Markdown 文件：
 
@@ -25,12 +53,24 @@ date: 2026-01-28
 素材内容...
 ```
 
+2) 在 Claude Code 中运行：
+
+```
+/wqq-wechat-article
+```
+
+Claude 会引导你完成整个流程。
+
+### 方式 2：直接使用 CLI
+
+1) 准备素材文件（同上）
+
 2) 运行文章生成脚本：
 
 ```bash
 npx -y bun skills/wqq-wechat-article/scripts/main.ts \
-  --sources sources/*.md \
-  --summary "手把手教你使用某技术" \
+  --sources remotion-skills/sources/*.md \
+  --summary "手把手教你使用remotion生成视频" \
   --outline "安装环境,创建项目,编写代码,测试部署"
 ```
 

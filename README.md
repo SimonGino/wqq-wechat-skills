@@ -10,7 +10,35 @@ Personal Claude Code skills for a simple WeChat tutorial article workflow.
 - Draft a tutorial-style WeChat article in Markdown
 - Generate infographic prompts and images (optional)
 
+## Usage in Claude Code
+
+### Using skills directly
+
+The recommended way is to use the skills within Claude Code:
+
+1) Prepare your source materials as markdown files with YAML frontmatter
+2) Use the skill command:
+
+```
+/wqq-wechat-article
+```
+
+Claude will:
+- Ask you for the one-sentence summary and outline
+- Read your source files
+- Generate the complete article structure automatically
+
+For image generation:
+
+```
+/wqq-image-gen
+```
+
+Claude will ask for the prompt and generate the image.
+
 ## Recommended MVP workflow
+
+### Option 1: Using skills in Claude Code (Recommended)
 
 1) Manually collect sources and save them as markdown files with YAML frontmatter:
 
@@ -24,6 +52,18 @@ date: 2026-01-28
 
 Source content here...
 ```
+
+2) In Claude Code, run:
+
+```
+/wqq-wechat-article
+```
+
+Claude will guide you through the process.
+
+### Option 2: Using CLI directly
+
+1) Prepare sources as above
 
 2) Run the article generation script:
 
