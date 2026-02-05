@@ -7,6 +7,49 @@ description: Creates Chinese tutorial-style WeChat articles from pasted URL sour
 
 目标：把你贴的链接内容（素材）+ 你的一句话总结/大纲，整理成**中文教程类公众号文章 Markdown**，并给出 2-4 张信息图的生成提示词（可选调用 `/wqq-image-gen` 生成图片）。
 
+## Phase 0: 风格学习（必须先执行）
+
+在生成任何内容前，**必须**先读取以下文件：
+
+### 1. 读取风格指南
+
+```
+references/style-guide.md
+```
+
+这是作者的写作风格总结，包含：
+- 标题风格、开头模式、段落结构
+- 常用句式、过渡词、禁忌
+- 代码示例风格、信息密度要求
+
+**生成的所有内容必须严格遵循此风格指南。**
+
+### 2. 读取 1-2 篇相关历史文章
+
+从 `references/past-articles/` 目录中选择 1-2 篇与当前主题最相关的文章作为范例：
+
+```
+references/past-articles/
+├── Clawdbot 从安装到高效使用.md
+├── Everything-Claude-Code-完整指南.md
+├── OpenCode+oh-my-opencode王炸组合.md
+├── openCode 完整使用指南：从 0 到生产级实战.md
+├── 让antigravity在claude code中使用.md
+└── 随着Anthropic宣布阻止第三方使用Claude Code订阅...md
+```
+
+**选择标准**：
+- 优先选择主题相近的（如都是工具教程、都是配置指南）
+- 优先选择结构相似的（如都是长文、都是快速指南）
+
+读取后，提取该文章的：
+- 章节结构
+- 开头和结尾模式
+- 表格和列表的使用方式
+- 代码块的组织方式
+
+---
+
 ## Usage
 
 输入（MVP）：
@@ -80,12 +123,44 @@ wechat-article/<topic-slug>/
 
 ### Step 4: Draft WeChat Markdown Article
 
-输出 `03-article.md`（中文教程风格）：
-- 短段落（1-3 句）
-- 多用列表/编号步骤
-- 每个 Step 包含：目的 → 操作 → 预期结果 → 常见坑
-- 关键点用加粗，不要堆叠花哨格式
-- 结尾必须包含“参考链接”区块（用素材 URL）
+输出 `03-article.md`，**严格按照 `references/style-guide.md` 的风格要求**：
+
+#### 结构要求（按顺序）
+
+1. **开头**：痛点引子（1-3 句）→ 价值承诺（读完能拿到什么）→ 资源链接前置
+2. **目录**：长文必须给完整目录，带序号
+3. **正文**：渐进式结构
+   - 是什么（定义/定位）
+   - 为什么（价值/收益）
+   - 怎么装（安装步骤）
+   - 怎么用（核心用法）
+   - 怎么配（配置详解）
+   - 常见坑（踩坑与排查）
+   - 附录（完整配置参考）
+4. **结尾**：行动建议 + 资源链接汇总表格
+
+#### 段落与格式
+
+- 短段落（2-5 行），超过就拆
+- 大量使用列表和表格
+- 代码块必须完整可运行 + 带注释
+- 每个步骤后给验证方法
+- 章节间用 `---` 分隔
+
+#### 语言风格
+
+- 口语化但不随意，像和同事讲解
+- 直接、自信、实用主义
+- 用确定语气，不用"可能"、"大概"
+- 常用句式："一句话总结"、"你会得到"、"先别折腾"、"如果你只想要一个结论"
+
+#### 禁忌
+
+- 不用"亲爱的读者"、"小伙伴们"
+- 不用废话开场
+- 不用长难句
+- 不重复啰嗦
+- 不用"感谢阅读"等套话
 
 ### Step 5: Infographic Opportunities + Prompts
 
@@ -103,6 +178,8 @@ wechat-article/<topic-slug>/
 
 ## References
 
+- **Style guide (MUST READ FIRST)**: [../../references/style-guide.md](../../references/style-guide.md)
+- **Past articles (pick 1-2 as examples)**: [../../references/past-articles/](../../references/past-articles/)
 - Tutorial template: [references/tutorial-template.md](references/tutorial-template.md)
 - Infographic prompt template: [references/infographic-prompt-template.md](references/infographic-prompt-template.md)
 
