@@ -10,3 +10,8 @@ wechat-article/
 # Personal past articles (keep README as placeholder)
 references/past-articles/*
 !references/past-articles/README.md
+
+# Private demo references
+references/demo/
+references/demo1/
+references/demo2/
