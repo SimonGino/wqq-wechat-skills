@@ -1,6 +1,7 @@
 import path from "node:path";
 import process from "node:process";
-import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import type { CliArgs, Source, SourceMetadata } from "./types";
 import { formatError } from "../../shared/retry";
 
@@ -25,8 +26,66 @@ Output:
   <outdir>/04-infographics/prompts.md  Infographic prompts
 
 Environment:
-  This script generates tutorial articles based on SKILL.md workflow.
+  WQQ_PAST_ARTICLES_DIR   Optional private history articles directory
+  Env file load order: process.env > ~/.wqq-skills/.env
+
+  If WQQ_PAST_ARTICLES_DIR is not set, past-articles step is skipped.
 `);
+}
+
+async function loadEnvFile(p: string): Promise<Record<string, string>> {
+  try {
+    const content = await readFile(p, "utf8");
+    const env: Record<string, string> = {};
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const idx = trimmed.indexOf("=");
+      if (idx === -1) continue;
+      const key = trimmed.slice(0, idx).trim();
+      let val = trimmed.slice(idx + 1).trim();
+      if (
+        (val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))
+      ) {
+        val = val.slice(1, -1);
+      }
+      env[key] = val;
+    }
+    return env;
+  } catch {
+    return {};
+  }
+}
+
+async function loadEnv(): Promise<void> {
+  const home = homedir();
+  const homeEnv = await loadEnvFile(path.join(home, ".wqq-skills", ".env"));
+
+  for (const [k, v] of Object.entries(homeEnv)) {
+    if (!process.env[k]) process.env[k] = v;
+  }
+}
+
+async function resolvePastArticlesDir(): Promise<string | null> {
+  const raw = process.env.WQQ_PAST_ARTICLES_DIR?.trim();
+  if (!raw) return null;
+
+  const resolved = path.resolve(raw);
+
+  try {
+    const st = await stat(resolved);
+    if (!st.isDirectory()) {
+      console.error(
+        `Warning: WQQ_PAST_ARTICLES_DIR is not a directory: ${resolved}`,
+      );
+      return null;
+    }
+    return resolved;
+  } catch {
+    console.error(`Warning: WQQ_PAST_ARTICLES_DIR not found: ${resolved}`);
+    return null;
+  }
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -350,6 +409,17 @@ async function main(): Promise<void> {
   if (args.help) {
     printUsage();
     return;
+  }
+
+  await loadEnv();
+  const pastArticlesDir = await resolvePastArticlesDir();
+
+  if (pastArticlesDir) {
+    console.log(`ℹ Past articles directory: ${pastArticlesDir}`);
+  } else {
+    console.log(
+      "ℹ Past articles directory: skipped (set WQQ_PAST_ARTICLES_DIR to enable)",
+    );
   }
 
   if (args.sources.length === 0) {

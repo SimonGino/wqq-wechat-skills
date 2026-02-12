@@ -110,11 +110,9 @@ npx -y bun skills/wqq-image-gen/scripts/main.ts \
 - 左右两翼只做背景延展，不放关键信息
 - `2.35:1` 不可用时，用 `21:9` 近似
 
-## API Key 配置
+## 环境变量配置
 
-`wqq-image-gen` 支持自动识别 OpenAI / Google Key。
-
-推荐把密钥放到（不要提交到 Git）：
+推荐把本地私有配置放到 `~/.wqq-skills/.env`（不要提交到 Git）：
 
 ```bash
 mkdir -p ~/.wqq-skills
@@ -124,8 +122,16 @@ OPENAI_IMAGE_MODEL=gpt-image-1.5
 
 GOOGLE_API_KEY=xxx
 GOOGLE_IMAGE_MODEL=gemini-3-pro-image-preview
+
+# 可选：你的历史公众号文章目录（不配置则跳过历史文章参考步骤）
+WQQ_PAST_ARTICLES_DIR=/absolute/path/to/your/past-articles
 EOF
 ```
+
+- `wqq-image-gen` 会自动读取 OpenAI / Google 相关配置。
+- `wqq-wechat-article` 会读取 `WQQ_PAST_ARTICLES_DIR`：
+  - 配置且目录存在：读取该目录下的历史文章作为风格参考
+  - 未配置：跳过历史文章步骤（不会再去猜测其他目录）
 
 ## 安装
 

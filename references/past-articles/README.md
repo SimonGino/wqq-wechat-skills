@@ -1,6 +1,17 @@
 # 历史文章目录
 
-把你之前发布过的公众号文章放在这里，格式为 Markdown 文件。
+这是占位目录。
+
+默认情况下，`wqq-wechat-article` 不会强依赖仓库内的历史文章。
+推荐在本地私有目录维护历史文章，并通过 `WQQ_PAST_ARTICLES_DIR` 指向该目录。
+
+例如在 `~/.wqq-skills/.env` 中配置：
+
+```env
+WQQ_PAST_ARTICLES_DIR=/absolute/path/to/your/past-articles
+```
+
+如果未配置该变量，历史文章参考步骤会被跳过。
 
 ## 命名建议
 

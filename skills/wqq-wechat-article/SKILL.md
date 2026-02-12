@@ -9,7 +9,7 @@ description: Creates Chinese tutorial-style WeChat articles from pasted URL sour
 
 ## Phase 0: 风格学习（必须先执行）
 
-在生成任何内容前，**必须**先读取以下文件：
+在生成任何内容前，**必须**先完成以下准备：
 
 ### 1. 读取风格指南
 
@@ -24,21 +24,20 @@ references/style-guide.md
 
 **生成的所有内容必须严格遵循此风格指南。**
 
-### 2. 读取 1-2 篇相关历史文章
+### 2. （可选）读取 1-2 篇相关历史文章
 
-从 `references/past-articles/` 目录中选择 1-2 篇与当前主题最相关的文章作为范例：
+先检查环境变量 `WQQ_PAST_ARTICLES_DIR`（建议配置在 `~/.wqq-skills/.env`）：
 
-```
-references/past-articles/
-├── Clawdbot 从安装到高效使用.md
-├── Everything-Claude-Code-完整指南.md
-├── OpenCode+oh-my-opencode王炸组合.md
-├── openCode 完整使用指南：从 0 到生产级实战.md
-├── 让antigravity在claude code中使用.md
-└── 随着Anthropic宣布阻止第三方使用Claude Code订阅...md
+```env
+WQQ_PAST_ARTICLES_DIR=/absolute/path/to/your/past-articles
 ```
 
-**选择标准**：
+执行规则（必须严格遵循）：
+1. 若变量已配置且目录存在：从该目录中选择 1-2 篇与当前主题最相关的文章作为范例。
+2. 若变量未配置：**直接跳过历史文章步骤**，不要猜测或搜索其他仓库/目录。
+3. 若变量已配置但目录不存在：提示路径无效并跳过，不要回退到任何默认目录。
+
+如果执行了历史文章步骤，选择标准如下：
 - 优先选择主题相近的（如都是工具教程、都是配置指南）
 - 优先选择结构相似的（如都是长文、都是快速指南）
 
@@ -203,7 +202,7 @@ wechat-article/<topic-slug>/
 ## References
 
 - **Style guide (MUST READ FIRST)**: [../../references/style-guide.md](../../references/style-guide.md)
-- **Past articles (pick 1-2 as examples)**: [../../references/past-articles/](../../references/past-articles/)
+- **Past articles (optional)**: `WQQ_PAST_ARTICLES_DIR`（未配置则跳过）
 - Tutorial template: [references/tutorial-template.md](references/tutorial-template.md)
 - Infographic prompt template: [references/infographic-prompt-template.md](references/infographic-prompt-template.md)
 
