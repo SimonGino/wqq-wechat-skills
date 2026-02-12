@@ -2,6 +2,29 @@
 
 目标：生成“信息密度高但不拥挤”的公众号配图（信息图/示意图）。
 
+## WeChat Cover (Dual Crop, MUST)
+
+公众号封面是单独类型，不按普通信息图处理。目标是一张图同时兼容微信的 `1:1` 与 `2.35:1` 裁切。
+
+### Hard Constraints
+
+- Canvas ratio: `2.35:1` (recommended `2350x1000`)
+- Center safe area: `1:1` square, centered, width = `42.55%` of full canvas
+- Side wings: left and right `28.72%` each, decoration/background only
+- ALL critical elements inside safe area: main subject, title, logo
+- No edge-aligned key text, no watermark, no busy background
+
+### Cover Prompt (English)
+
+```
+Create a WeChat article cover image that supports dual crop.
+Canvas ratio: 2.35:1 landscape.
+Critical safe area: centered 1:1 square occupying 42.55% of canvas width.
+Place ALL key elements inside the safe area: main subject, title, logo.
+Use side areas only for background extension and atmosphere.
+Readable at small size, high contrast, minimal text, no watermark, no busy background.
+```
+
 ## Per-Image Spec
 
 ### 1) Purpose
@@ -26,10 +49,11 @@
 - Flat vector or clean infographic
 - No excessive decoration
 
-### 5) Aspect Ratio
+### 5) Aspect Ratio Rules
 
-- Default: 1:1
-- Alternative: 9:16 (for long step-by-step)
+- Cover image: `2.35:1` + centered `1:1` safe area (mandatory)
+- Infographic default: `1:1`
+- Infographic alternative: `9:16` (for long step-by-step)
 
 ## Prompt (English)
 
@@ -48,6 +72,7 @@ Design constraints:
 - Clear hierarchy (title > section headers > bullets)
 - Avoid tiny text, avoid clutter
 - No watermark
+- If this is a WeChat cover: keep key elements inside centered `1:1` safe area
 ```
 
 If you need a diagram:

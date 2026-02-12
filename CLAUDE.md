@@ -34,9 +34,9 @@ npx -y bun skills/wqq-image-gen/scripts/main.ts \
 
 ## Secrets
 
-- Put API keys in `$HOME/.wqq-skills/.env` (recommended) or `<cwd>/.wqq-skills/.env`.
+- Put API keys in `$HOME/.wqq-skills/.env`.
 - Do not commit secrets; `.wqq-skills/` is gitignored.
-- Priority: process.env > `<cwd>/.wqq-skills/.env` > `$HOME/.wqq-skills/.env`
+- Priority: process.env > `$HOME/.wqq-skills/.env`
 
 ## Development
 

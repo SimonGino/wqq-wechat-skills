@@ -1,15 +1,16 @@
-# Past Articles
+# 历史文章目录
 
-Place your previously published WeChat articles here as Markdown files.
+把你之前发布过的公众号文章放在这里，格式为 Markdown 文件。
 
-## Naming Convention
+## 命名建议
 
-Use descriptive filenames, e.g.:
-- `2024-01-claude-code-tutorial.md`
-- `2024-02-remotion-video-guide.md`
+建议使用可读性高的文件名，例如：
+- `2024-01-claude-code-教程.md`
+- `2024-02-remotion-实战指南.md`
 
-## File Format
+## 文件格式
 
-Each file should be a plain Markdown file (no YAML frontmatter required).
+- 使用普通 Markdown 即可（不强制 YAML frontmatter）
+- 一篇文章一个文件
 
-The content will be used as style reference for generating new articles.
+这些文章会作为风格参考，用于生成新的公众号内容。

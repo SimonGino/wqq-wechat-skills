@@ -1,110 +1,120 @@
 # wqq-wechat-skills
 
-English | [中文](./README.zh.md)
+这是一个面向微信公众号教程写作的个人技能仓库，包含：
+- `wqq-wechat-article`：把素材整理成教程型公众号文章
+- `wqq-image-gen`：生成封面图与信息图（OpenAI / Google）
 
-Personal Claude Code skills for a simple WeChat tutorial article workflow.
+## MVP 能力
 
-## MVP
+- 手动整理素材（Markdown）
+- 自动生成教程文章骨架与草稿
+- 自动生成公众号封面 prompt（双裁切规范）
+- 自动生成信息图 prompts（可选再生成图片）
 
-- Manually collect sources → save as markdown files
-- Draft a tutorial-style WeChat article in Markdown
-- Generate infographic prompts and images (optional)
+## 推荐使用方式（Claude Code）
 
-## Usage in Claude Code
+### 1) 文章生成
 
-### Using skills directly
-
-The recommended way is to use the skills within Claude Code:
-
-1) Prepare your source materials as markdown files with YAML frontmatter
-2) Use the skill command:
-
-```
+```text
 /wqq-wechat-article
 ```
 
-Claude will:
-- Ask you for the one-sentence summary and outline
-- Read your source files
-- Generate the complete article structure automatically
+你会得到：
+- 文章目录与草稿
+- 封面图 prompt（同一张图兼容 `1:1` 和 `2.35:1`）
+- 信息图 prompts
 
-For image generation:
+### 2) 图片生成
 
-```
+```text
 /wqq-image-gen
 ```
 
-Claude will ask for the prompt and generate the image.
+适用场景：
+- 公众号封面图
+- 文中信息图（流程图、清单卡、对比图等）
 
-## Recommended MVP workflow
+## 推荐工作流（MVP）
 
-### Option 1: Using skills in Claude Code (Recommended)
+### 方案 A：直接用技能（推荐）
 
-1) Manually collect sources and save them as markdown files with YAML frontmatter:
+1) 准备素材文件（Markdown + YAML 元信息）
 
 ```markdown
 ---
-title: Source Title
+title: 资料标题
 url: https://example.com
-author: Author Name
+author: 作者名
 date: 2026-01-28
 ---
 
-Source content here...
+这里是你摘录的内容与理解。
 ```
 
-2) In Claude Code, run:
+2) 在 Claude Code 中执行：
 
-```
+```text
 /wqq-wechat-article
 ```
 
-Claude will guide you through the process.
+3) 根据输出补全 `03-article.md` 细节，按需生成图片。
 
-### Option 2: Using CLI directly
+### 方案 B：命令行直接执行
 
-1) Prepare sources as above
+1) 先准备好 `sources/*.md`
 
-2) Run the article generation script:
+2) 生成文章结构：
 
 ```bash
 npx -y bun skills/wqq-wechat-article/scripts/main.ts \
   --sources sources/*.md \
-  --summary "手把手教你使用某技术" \
-  --outline "安装环境,创建项目,编写代码,测试部署"
+  --summary "手把手教你从 0 到 1 搭建某工具" \
+  --outline "安装,初始化,核心配置,实战用法,排错"
 ```
 
-Outputs:
-- `wechat-article/<topic>/01-sources.md`: Merged sources
-- `wechat-article/<topic>/02-outline.md`: Article outline
-- `wechat-article/<topic>/03-article.md`: Draft article (needs manual completion)
-- `wechat-article/<topic>/04-infographics/prompts.md`: Infographic prompts
+输出目录示例：
 
-3) Complete the article by editing `03-article.md` based on the tutorial template.
+```text
+wechat-article/<topic>/
+  sources/
+  01-sources.md
+  02-outline.md
+  03-article.md
+  04-infographics/
+    00-cover-prompt.md
+    prompts.md
+```
 
-4) (Optional) Generate infographics:
+3) 按 prompts 生成图片（可选）：
 
 ```bash
+# 封面图（双裁切：1:1 + 2.35:1）
 npx -y bun skills/wqq-image-gen/scripts/main.ts \
-  --prompt "Create a flowchart about..." \
-  --image wechat-article/<topic>/04-infographics/01-flowchart.png \
+  --prompt "..." \
+  --image wechat-article/<topic>/04-infographics/00-cover.png \
+  --ar 2.35:1
+
+# 信息图（示例：1:1）
+npx -y bun skills/wqq-image-gen/scripts/main.ts \
+  --prompt "..." \
+  --image wechat-article/<topic>/04-infographics/01-infographic.png \
   --ar 1:1 \
   --quality 2k
 ```
 
-## Features
+## 公众号封面双裁切规范
 
-- **Automated workflow**: Scripts handle file organization and template generation
-- **Smart retry**: Image generation retries with exponential backoff (3 attempts)
-- **Error handling**: Helpful error messages with troubleshooting tips
-- **Type safety**: Full TypeScript type checking
-- **Tested**: Unit tests + integration smoke tests
+如果一张图要同时用于微信 `1:1` 和 `2.35:1`：
+- 画布建议 `2.35:1`
+- 关键元素放在居中 `1:1` 安全区
+- 左右两翼只做背景延展，不放关键信息
+- `2.35:1` 不可用时，用 `21:9` 近似
 
-## API keys
+## API Key 配置
 
-`wqq-image-gen` supports OpenAI or Google (auto-detected by available keys).
+`wqq-image-gen` 支持自动识别 OpenAI / Google Key。
 
-Recommended `.env` setup (do not commit):
+推荐把密钥放到（不要提交到 Git）：
 
 ```bash
 mkdir -p ~/.wqq-skills
@@ -117,54 +127,36 @@ GOOGLE_IMAGE_MODEL=gemini-3-pro-image-preview
 EOF
 ```
 
-## Limitations
-
-- This MVP does not include automated web scraping/crawling.
-
-## Install
+## 安装
 
 ```bash
 /plugin marketplace add <your-github-username>/wqq-wechat-skills
 ```
 
-## Skills
-
-- `wqq-wechat-article` - WeChat tutorial article generator
-- `wqq-image-gen` - Infographic image generator (OpenAI/Google)
-
-## Development
-
-### Setup
+## 开发
 
 ```bash
-# Install dependencies
-bun install
-
-# Type checking
+# 类型检查
 bun run typecheck
 
-# Run tests
+# 单元测试
 bun run test
 
-# Run smoke tests
+# 冒烟测试
 bun run test:smoke
 ```
 
-### Project structure
+## 项目结构
 
-```
+```text
 skills/
-  shared/              # Shared utilities
-    retry.ts           # Retry with exponential backoff
-    arg-parser.ts      # CLI argument parsing helpers
-  wqq-image-gen/       # Image generation skill
-  wqq-wechat-article/  # WeChat article skill
+  shared/              # 公共工具
+  wqq-image-gen/       # 图片生成技能
+  wqq-wechat-article/  # 文章生成技能
 scripts/
-  smoke-test.sh        # Integration tests
-remotion-skills/       # Example source materials
-  sources/             # Sample markdown sources for testing
+  smoke-test.sh        # 冒烟测试脚本
 ```
 
-### Contributing
+## 说明
 
-This is a personal skills repository. Feel free to fork and adapt for your needs.
+这是个人技能仓库，可按需 fork 与二次改造。

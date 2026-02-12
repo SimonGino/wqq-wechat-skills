@@ -1,11 +1,11 @@
 ---
 name: wqq-wechat-article
-description: Creates Chinese tutorial-style WeChat articles from pasted URL sources and a user-written one-sentence summary/outline. Outputs Markdown and a list of infographic prompts. Use when user mentions "公众号文章", "教程", "写文章大纲", or wants to turn links into a tutorial.
+description: Creates Chinese tutorial-style WeChat articles from pasted URL sources and a user-written one-sentence summary/outline. Outputs Markdown, a dual-crop cover prompt, and infographic prompts. Use when user mentions "公众号文章", "教程", "写文章大纲", or wants to turn links into a tutorial.
 ---
 
 # WeChat Tutorial Article Workflow (MVP)
 
-目标：把你贴的链接内容（素材）+ 你的一句话总结/大纲，整理成**中文教程类公众号文章 Markdown**，并给出 2-4 张信息图的生成提示词（可选调用 `/wqq-image-gen` 生成图片）。
+目标：把你贴的链接内容（素材）+ 你的一句话总结/大纲，整理成**中文教程类公众号文章 Markdown**，并给出 1 张公众号封面图（双裁切规范）+ 2-4 张信息图的生成提示词（可选调用 `/wqq-image-gen` 生成图片）。
 
 ## Phase 0: 风格学习（必须先执行）
 
@@ -58,6 +58,7 @@ references/past-articles/
 
 输出：
 - 公众号友好的 Markdown 正文
+- 公众号封面图 prompt（同一张图兼容 1:1 与 2.35:1 裁切）
 - 信息图清单 + 每张图的生成 prompt
 
 建议调用链：
@@ -78,6 +79,8 @@ wechat-article/<topic-slug>/
   02-outline.md
   03-article.md
   04-infographics/
+    00-cover-prompt.md
+    00-cover-<slug>.png
     prompts.md
     01-infographic-<slug>.png
     02-infographic-<slug>.png
@@ -162,7 +165,28 @@ wechat-article/<topic-slug>/
 - 不重复啰嗦
 - 不用"感谢阅读"等套话
 
-### Step 5: Infographic Opportunities + Prompts
+### Step 5: WeChat 封面图（双裁切规范，必须执行）
+
+公众号封面只生成 **1 张源图**，但必须同时兼容两种微信裁切：
+- `1:1`（转发卡片、公众号主页）
+- `2.35:1`（订阅号消息列表）
+
+输出 `04-infographics/00-cover-prompt.md`，并且必须包含以下硬性规则：
+
+1. **画布比例**：`2.35:1`（推荐 `2350x1000` 或同等比例更高分辨率）
+2. **1:1 安全区**：居中正方形；宽度占整图 `42.55%`，左右安全边距各 `28.72%`
+3. **内容布局**：
+   - 标题、核心主体、品牌标识必须全部落在 1:1 安全区内
+   - 左右两翼仅放背景延展或装饰，不放关键信息
+   - 禁止关键文字贴边或压角
+4. **可读性**：
+   - 封面主标题建议 `<= 12` 个汉字
+   - 避免小字号密集文案，优先单焦点 + 高对比
+5. **生成命令**：
+   - 优先：`/wqq-image-gen --prompt "..." --image 04-infographics/00-cover-<slug>.png --ar 2.35:1`
+   - 若模型不接受 `2.35:1`：使用 `--ar 21:9` 近似，并保留同样的安全区约束
+
+### Step 6: Infographic Opportunities + Prompts
 
 从文章中挑 2-4 个最值得配图的位置（优先）：
 1. 整体流程/架构（流程图/结构图）
@@ -171,7 +195,7 @@ wechat-article/<topic-slug>/
 4. 常见坑与排错（决策树/排错流程）
 
 输出 `04-infographics/prompts.md`：
-- 每张图：目的、放置位置、关键文案要点、建议比例（默认 1:1 或 9:16）
+- 每张图：目的、放置位置、关键文案要点、建议比例（默认 `1:1`；长流程可 `9:16`）
 - 每张图给出可直接用于 `/wqq-image-gen` 的英文 prompt（图中文字可要求中文）
 
 参考模板见：[references/infographic-prompt-template.md](references/infographic-prompt-template.md)

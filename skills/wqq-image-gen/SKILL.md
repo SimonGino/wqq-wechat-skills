@@ -1,6 +1,6 @@
 ---
 name: wqq-image-gen
-description: Generates infographic-style images from prompts using official OpenAI or Google image APIs. Supports prompt files, aspect ratios, quality presets, and JSON output. Use when user asks to create an infographic image.
+description: Generates WeChat cover and infographic images from prompts using official OpenAI or Google image APIs. Supports prompt files, aspect ratios, quality presets, and JSON output. Use when user asks to create an infographic or WeChat cover image.
 ---
 
 # Image Generation (MVP)
@@ -38,12 +38,24 @@ npx -y bun ${SKILL_DIR}/scripts/main.ts --prompt "An infographic about X" --imag
 # With prompt files
 npx -y bun ${SKILL_DIR}/scripts/main.ts --promptfiles system.md content.md --image out.png
 
-# With aspect ratio (recommended for WeChat: 9:16 or 1:1)
+# With aspect ratio (infographic: 1:1/9:16, WeChat cover: 2.35:1)
 npx -y bun ${SKILL_DIR}/scripts/main.ts --prompt "..." --image out.png --ar 9:16
+
+# WeChat cover (single image for dual crop: 1:1 + 2.35:1)
+npx -y bun ${SKILL_DIR}/scripts/main.ts --prompt "..." --image cover.png --ar 2.35:1
 
 # Force provider
 npx -y bun ${SKILL_DIR}/scripts/main.ts --prompt "..." --image out.png --provider google
 ```
+
+## WeChat Cover Dual-Crop Rule
+
+When generating one WeChat cover image to be cropped in both `1:1` and `2.35:1`:
+
+- Prefer `--ar 2.35:1` (fallback `--ar 21:9` if provider/model rejects `2.35:1`)
+- Keep all critical elements in a centered `1:1` safe area
+- The safe area width should be about `42.55%` of total width
+- Use side areas only for background extension (no critical text)
 
 ## Options
 
@@ -54,7 +66,7 @@ npx -y bun ${SKILL_DIR}/scripts/main.ts --prompt "..." --image out.png --provide
 | `--image <path>` | Output image path (required) |
 | `--provider google\|openai` | Force provider (auto-detect by API keys) |
 | `--model <id>`, `-m` | Model ID |
-| `--ar <ratio>` | Aspect ratio (e.g., `16:9`, `9:16`, `1:1`) |
+| `--ar <ratio>` | Aspect ratio (e.g., `16:9`, `9:16`, `1:1`, `2.35:1`) |
 | `--size <WxH>` | Size hint (e.g., `1024x1024`) |
 | `--quality normal\|2k` | Quality preset (default: `2k`) |
 | `--ref <files...>` | Reference images (Google multimodal only) |
@@ -73,7 +85,7 @@ npx -y bun ${SKILL_DIR}/scripts/main.ts --prompt "..." --image out.png --provide
 | `OPENAI_BASE_URL` | Custom OpenAI endpoint |
 | `GOOGLE_BASE_URL` | Custom Google endpoint |
 
-Env file load order: CLI environment > process.env > `<cwd>/.wqq-skills/.env` > `$HOME/.wqq-skills/.env`.
+Env file load order: CLI environment > process.env > `$HOME/.wqq-skills/.env`.
 
 ## Extension Support
 

@@ -21,6 +21,7 @@ Output:
   <outdir>/01-sources.md     Merged sources view
   <outdir>/02-outline.md     Tutorial outline
   <outdir>/03-article.md     Final WeChat article
+  <outdir>/04-infographics/00-cover-prompt.md  WeChat cover prompt
   <outdir>/04-infographics/prompts.md  Infographic prompts
 
 Environment:
@@ -293,6 +294,56 @@ async function generateInfographicPrompts(summary: string): Promise<string> {
   return parts.join("\n");
 }
 
+async function generateCoverPrompt(summary: string): Promise<string> {
+  const parts: string[] = ["# WeChat Cover Prompt (Dual Crop)\n"];
+
+  parts.push("## Purpose\n");
+  parts.push(`Create one WeChat cover image for: ${summary}`);
+  parts.push("The same image must support both 1:1 and 2.35:1 crops.\n");
+
+  parts.push("## Hard Constraints\n");
+  parts.push("- Canvas ratio: 2.35:1 (recommended 2350x1000 or larger)");
+  parts.push(
+    "- Center safe area: 1:1 square, centered, width = 42.55% of total width",
+  );
+  parts.push(
+    "- Left and right side areas (28.72% each) are for background extension only",
+  );
+  parts.push(
+    "- All critical elements must stay in safe area: title, main subject, brand mark",
+  );
+  parts.push("- Keep title short (<= 12 Chinese characters) and high contrast\n");
+
+  parts.push("## Prompt (English)\n");
+  parts.push("```");
+  parts.push("Create a WeChat article cover image that supports dual crop.");
+  parts.push("Canvas ratio: 2.35:1 landscape.");
+  parts.push(
+    "Critical safe area: centered 1:1 square occupying 42.55% of canvas width.",
+  );
+  parts.push(
+    "Place ALL key elements inside the safe area: main subject, title, logo.",
+  );
+  parts.push("Use side areas only for background extension and atmosphere.");
+  parts.push(
+    "Readable at small size, high contrast, minimal text, no watermark, no busy background.",
+  );
+  parts.push("```");
+
+  parts.push("\n## Generation Command\n");
+  parts.push("```bash");
+  parts.push(
+    '/wqq-image-gen --prompt "..." --image 04-infographics/00-cover-<slug>.png --ar 2.35:1',
+  );
+  parts.push("# Fallback if model rejects 2.35:1");
+  parts.push(
+    '/wqq-image-gen --prompt "..." --image 04-infographics/00-cover-<slug>.png --ar 21:9',
+  );
+  parts.push("```");
+
+  return parts.join("\n");
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
@@ -362,6 +413,13 @@ async function main(): Promise<void> {
   );
   await writeFile(path.join(outdir, "03-article.md"), articleContent);
 
+  // Generate 04-infographics/00-cover-prompt.md
+  const coverPromptContent = await generateCoverPrompt(args.summary);
+  await writeFile(
+    path.join(outdir, "04-infographics", "00-cover-prompt.md"),
+    coverPromptContent,
+  );
+
   // Generate 04-infographics/prompts.md
   const promptsContent = await generateInfographicPrompts(args.summary);
   await writeFile(
@@ -374,6 +432,7 @@ async function main(): Promise<void> {
   console.log(`  - 01-sources.md`);
   console.log(`  - 02-outline.md`);
   console.log(`  - 03-article.md (TODO: complete with tutorial content)`);
+  console.log(`  - 04-infographics/00-cover-prompt.md`);
   console.log(`  - 04-infographics/prompts.md`);
   console.log(`\nNext steps:`);
   console.log(

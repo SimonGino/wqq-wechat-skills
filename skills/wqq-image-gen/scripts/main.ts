@@ -34,7 +34,7 @@ Environment variables:
   OPENAI_BASE_URL           Custom OpenAI endpoint
   GOOGLE_BASE_URL           Custom Google endpoint
 
-Env file load order: CLI args > process.env > <cwd>/.wqq-skills/.env > ~/.wqq-skills/.env`);
+Env file load order: CLI args > process.env > ~/.wqq-skills/.env`);
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -206,18 +206,12 @@ async function loadEnvFile(p: string): Promise<Record<string, string>> {
 
 async function loadEnv(): Promise<void> {
   const home = homedir();
-  const cwd = process.cwd();
 
   const homeEnv = await loadEnvFile(path.join(home, ".wqq-skills", ".env"));
-  const cwdEnv = await loadEnvFile(path.join(cwd, ".wqq-skills", ".env"));
 
-  // Priority: process.env > cwdEnv > homeEnv
-  // Load homeEnv first, then override with cwdEnv
+  // Priority: process.env > homeEnv
   for (const [k, v] of Object.entries(homeEnv)) {
     if (!process.env[k]) process.env[k] = v;
-  }
-  for (const [k, v] of Object.entries(cwdEnv)) {
-    process.env[k] = v; // cwdEnv overrides homeEnv
   }
 }
 
@@ -261,7 +255,7 @@ function detectProvider(args: CliArgs): Provider {
 
   throw new Error(
     "No API key found. Set GOOGLE_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY.\n" +
-      "Create ~/.wqq-skills/.env or <cwd>/.wqq-skills/.env with your keys.",
+      "Create ~/.wqq-skills/.env with your keys.",
   );
 }
 
