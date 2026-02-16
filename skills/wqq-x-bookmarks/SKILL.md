@@ -9,9 +9,10 @@ description: 导出 X 书签到 Markdown，支持 debug 认证验证、分页抓
 
 ## Prerequisites
 
-- 需要环境变量：
+- 推荐使用环境变量：
   - `X_AUTH_TOKEN`
   - `X_CT0`
+- 如果没有传，脚本会尝试读取本机 Chrome cookie（依赖 `python3` + `browser_cookie3`）。
 
 ## Step 1: 先做 debug 认证验证
 

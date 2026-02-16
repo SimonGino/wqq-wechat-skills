@@ -5,12 +5,14 @@
 ## 前置条件
 
 - 需要可用的 X cookies：`auth_token`、`ct0`
-- 可通过环境变量注入：
+- 优先使用环境变量注入（最稳定）：
 
 ```bash
 export X_AUTH_TOKEN="..."
 export X_CT0="..."
 ```
+
+- 若未传环境变量，脚本会尝试自动读取本机 Chrome 的 X cookie（需要 `python3` 和 `browser_cookie3`）。
 
 ## 调试认证与分页
 
