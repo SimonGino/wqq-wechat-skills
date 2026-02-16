@@ -17,7 +17,7 @@ echo -e "${GREEN}✓${NC}"
 
 # Test 2: Unit tests
 echo -n "Running unit tests... "
-bun test skills/shared/*.test.ts > /dev/null 2>&1
+bun test skills/shared/**/*.test.ts > /dev/null 2>&1
 echo -e "${GREEN}✓${NC}"
 
 # Test 3: wqq-image-gen help
@@ -49,13 +49,33 @@ else
   echo -e "${GREEN}✓${NC}"
 fi
 
-# Test 6: wqq-wechat-article error handling (missing args)
-echo -n "Testing wqq-wechat-article error handling... "
+# Test 6: wqq-wechat-article default workspace mode
+echo -n "Testing wqq-wechat-article default workspace mode... "
 if bun skills/wqq-wechat-article/scripts/main.ts > /dev/null 2>&1; then
-  echo -e "${RED}✗ (should have failed)${NC}"
-  exit 1
-else
   echo -e "${GREEN}✓${NC}"
+else
+  echo -e "${RED}✗${NC}"
+  exit 1
+fi
+
+# Test 7: wqq-x-bookmarks export help
+echo -n "Testing wqq-x-bookmarks export --help... "
+output=$(bun skills/wqq-x-bookmarks/scripts/main.ts --help 2>&1)
+if echo "$output" | grep -q "Usage:"; then
+  echo -e "${GREEN}✓${NC}"
+else
+  echo -e "${RED}✗${NC}"
+  exit 1
+fi
+
+# Test 8: wqq-x-bookmarks debug help
+echo -n "Testing wqq-x-bookmarks debug --help... "
+output=$(bun skills/wqq-x-bookmarks/scripts/debug.ts --help 2>&1)
+if echo "$output" | grep -q "Usage:"; then
+  echo -e "${GREEN}✓${NC}"
+else
+  echo -e "${RED}✗${NC}"
+  exit 1
 fi
 
 echo ""
