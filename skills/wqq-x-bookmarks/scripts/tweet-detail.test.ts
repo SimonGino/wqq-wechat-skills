@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseTweetResultPayload, shouldHydrateTweet } from "./tweet-detail";
+import { parseTweetResultPayload, resolveTweetQueryChunkUrl, shouldHydrateTweet } from "./tweet-detail";
 
 describe("shouldHydrateTweet", () => {
   test("returns true when username is missing", () => {
@@ -79,5 +79,14 @@ describe("parseTweetResultPayload", () => {
     expect(tweet?.text).toContain("The complete claude code tutorial");
     expect(tweet?.text).toContain("/article");
     expect(tweet?.text).not.toContain("https://t.co/");
+  });
+});
+
+describe("resolveTweetQueryChunkUrl", () => {
+  test("falls back to api chunk when main hash is unavailable", () => {
+    const html = '"api":"a1b2c3d4"';
+    expect(resolveTweetQueryChunkUrl(html)).toBe(
+      "https://abs.twimg.com/responsive-web/client-web/api.a1b2c3d4a.js"
+    );
   });
 });

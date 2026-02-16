@@ -95,17 +95,38 @@ function pickMediaUrls(tweet: any): string[] {
 }
 
 function resolveMainChunkHash(html: string): string | null {
-  return html.match(/main\\.([a-z0-9]+)\\.js/)?.[1] ?? null;
+  return (
+    html.match(/main\\.([a-zA-Z0-9_-]+)\\.js/)?.[1] ??
+    html.match(/\"main\":\"([a-zA-Z0-9_-]+)\"/)?.[1] ??
+    null
+  );
+}
+
+function resolveApiChunkHash(html: string): string | null {
+  return (
+    html.match(/api:\"([a-zA-Z0-9_-]+)\"/)?.[1] ??
+    html.match(/\"api\":\"([a-zA-Z0-9_-]+)\"/)?.[1] ??
+    null
+  );
+}
+
+export function resolveTweetQueryChunkUrl(html: string): string {
+  const mainHash = resolveMainChunkHash(html);
+  if (mainHash) {
+    return `https://abs.twimg.com/responsive-web/client-web/main.${mainHash}.js`;
+  }
+
+  const apiHash = resolveApiChunkHash(html);
+  if (apiHash) {
+    return `https://abs.twimg.com/responsive-web/client-web/api.${apiHash}a.js`;
+  }
+
+  throw new Error("tweet query chunk hash not found");
 }
 
 async function resolveTweetQueryInfo(userAgent: string): Promise<TweetQueryInfo> {
   const html = await fetchHomeHtml(userAgent);
-  const mainHash = resolveMainChunkHash(html);
-  if (!mainHash) {
-    throw new Error("main chunk hash not found");
-  }
-
-  const chunkUrl = `https://abs.twimg.com/responsive-web/client-web/main.${mainHash}.js`;
+  const chunkUrl = resolveTweetQueryChunkUrl(html);
   const chunk = await fetchText(chunkUrl, {
     headers: {
       "user-agent": userAgent,
