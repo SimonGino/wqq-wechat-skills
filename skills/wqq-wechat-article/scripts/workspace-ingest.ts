@@ -1,5 +1,5 @@
 import path from "node:path";
-import { readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 
 type ParsedYaml = {
   title?: string;
@@ -176,5 +176,37 @@ export function buildAutoSummary(
       "常见错误与排查",
       "落地清单与下一步",
     ],
+  };
+}
+
+export type WorkspaceIngestResult = {
+  sources: NormalizedSource[];
+  summary: AutoSummary;
+};
+
+export async function ingestWorkspace(
+  workspace: string,
+): Promise<WorkspaceIngestResult> {
+  const sourcePaths = await scanWorkspaceSources(workspace);
+  if (sourcePaths.length === 0) {
+    throw new Error(`No markdown/text sources found in workspace: ${workspace}`);
+  }
+
+  const nowIso = new Date().toISOString();
+  const sources: NormalizedSource[] = [];
+
+  for (const sourcePath of sourcePaths) {
+    const raw = await readFile(sourcePath, "utf8");
+    const normalized = normalizeSource(sourcePath, raw, nowIso);
+    sources.push(normalized);
+  }
+
+  if (sources.length === 0) {
+    throw new Error(`No valid sources found in workspace: ${workspace}`);
+  }
+
+  return {
+    sources,
+    summary: buildAutoSummary(sources),
   };
 }

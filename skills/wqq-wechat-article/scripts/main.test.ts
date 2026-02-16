@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import path from "node:path";
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
 type RunResult = {
@@ -111,6 +111,37 @@ describe("wqq-wechat-article CLI", () => {
     expect(`${result.stdout}\n${result.stderr}`).toContain(
       "--workspace and --sources cannot be used together",
     );
+  });
+
+  it("creates 00-summary.md and standard sources in workspace mode", async () => {
+    const workspace = await mkdtemp(path.join(tmpdir(), "wechat-article-workspace-"));
+    const caller = await mkdtemp(path.join(tmpdir(), "wechat-article-caller-"));
+    await mkdir(path.join(workspace, "refs"), { recursive: true });
+    await writeFile(path.join(workspace, "refs", "a.md"), "# 标题A\n正文A", "utf8");
+    await writeFile(path.join(workspace, "refs", "b.txt"), "纯文本B", "utf8");
+
+    const result = await runArticleCli(["--workspace", workspace], caller, {
+      WQQ_PAST_ARTICLES_DIR: undefined,
+    });
+
+    expect(result.code).toBe(0);
+    const outdir = extractOutdir(`${result.stdout}\n${result.stderr}`);
+    expect(await exists(path.join(outdir, "00-summary.md"))).toBeTrue();
+    expect(await exists(path.join(outdir, "01-sources.md"))).toBeTrue();
+
+    const sourceDir = path.join(outdir, "sources");
+    const sourceFiles = (await readdir(sourceDir))
+      .filter((name) => name.endsWith(".md"))
+      .sort();
+    expect(sourceFiles.length).toBeGreaterThan(0);
+
+    for (const file of sourceFiles) {
+      const content = await readFile(path.join(sourceDir, file), "utf8");
+      expect(content).toContain("title:");
+      expect(content).toContain("source_path:");
+      expect(content).toContain("ingested_at:");
+      expect(content).toContain("tags:");
+    }
   });
 
   it("generates dual-crop cover prompt file", async () => {
@@ -253,5 +284,29 @@ describe("wqq-wechat-article CLI", () => {
     expect(allOutput).toContain(
       `Past articles directory: ${path.resolve(pastArticlesDir)}`,
     );
+  });
+
+  it("keeps legacy --sources mode working", async () => {
+    const workspace = await mkdtemp(path.join(tmpdir(), "wechat-article-test-"));
+    const sourceFile = path.join(workspace, "legacy.md");
+    await writeFile(
+      sourceFile,
+      ["---", "title: Legacy Source", "---", "", "Legacy content"].join("\n"),
+      "utf8",
+    );
+
+    const result = await runArticleCli(
+      ["--sources", sourceFile, "--summary", "legacy mode works"],
+      workspace,
+    );
+
+    expect(result.code).toBe(0);
+    const outdir = extractOutdir(`${result.stdout}\n${result.stderr}`);
+    expect(await exists(path.join(outdir, "01-sources.md"))).toBeTrue();
+    expect(await exists(path.join(outdir, "02-outline.md"))).toBeTrue();
+    expect(await exists(path.join(outdir, "03-article.md"))).toBeTrue();
+    expect(
+      await exists(path.join(outdir, "04-infographics", "00-cover-prompt.md")),
+    ).toBeTrue();
   });
 });

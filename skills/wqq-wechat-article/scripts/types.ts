@@ -1,5 +1,6 @@
 export type CliArgs = {
   sources: string[];
+  workspace: string | null;
   summary: string | null;
   outline: string | null;
   outdir: string | null;
