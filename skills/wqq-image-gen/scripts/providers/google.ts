@@ -33,7 +33,10 @@ function getGoogleImageSize(args: CliArgs): "1K" | "2K" | "4K" {
 }
 
 function getGoogleBaseUrl(): string {
-  const base = process.env.GOOGLE_BASE_URL || "https://generativelanguage.googleapis.com";
+  const base = process.env.GOOGLE_BASE_URL?.trim();
+  if (!base) {
+    throw new Error("GOOGLE_BASE_URL is required");
+  }
   return base.replace(/\/+$/g, "");
 }
 

@@ -4,20 +4,29 @@ import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import type { CliArgs, Source, SourceMetadata } from "./types";
 import { formatError } from "../../shared/retry";
+import {
+  ingestWorkspace,
+  type AutoSummary,
+  type NormalizedSource,
+} from "./workspace-ingest";
 
 function printUsage(): void {
   console.log(`Usage:
+  npx -y bun scripts/main.ts
+  npx -y bun scripts/main.ts --workspace ./my-workspace
   npx -y bun scripts/main.ts --sources sources/*.md --summary "一句话总结"
   npx -y bun scripts/main.ts --sources sources/*.md --summary "..." --outline "要点1,要点2,要点3"
 
 Options:
-  --sources <files...>  Source markdown files (required)
-  --summary <text>      One-sentence summary (required)
+  --workspace <path>    Workspace root (default: current directory)
+  --sources <files...>  Source markdown files (legacy mode)
+  --summary <text>      One-sentence summary (required in --sources mode)
   --outline <text>      Optional outline points (comma-separated)
-  --outdir <path>       Output directory (default: wechat-article/<topic-slug>)
+  --outdir <path>       Output directory (default: <workspace>/wechat-article/<topic-slug>)
   -h, --help            Show help
 
 Output:
+  <outdir>/00-summary.md    Auto summary (workspace mode)
   <outdir>/sources/          Copied source files
   <outdir>/01-sources.md     Merged sources view
   <outdir>/02-outline.md     Tutorial outline
@@ -91,6 +100,7 @@ async function resolvePastArticlesDir(): Promise<string | null> {
 function parseArgs(argv: string[]): CliArgs {
   const out: CliArgs = {
     sources: [],
+    workspace: null,
     summary: null,
     outline: null,
     outdir: null,
@@ -147,6 +157,13 @@ function parseArgs(argv: string[]): CliArgs {
       continue;
     }
 
+    if (a === "--workspace") {
+      const v = argv[++i];
+      if (!v) throw new Error("Missing value for --workspace");
+      out.workspace = v;
+      continue;
+    }
+
     if (a.startsWith("-")) {
       throw new Error(`Unknown option: ${a}`);
     }
@@ -167,9 +184,15 @@ function generateTopicSlug(summary: string): string {
   return words.join("-");
 }
 
-function generateOutputDir(summary: string, baseOutdir: string | null): string {
+function generateOutputDir(
+  summary: string,
+  baseOutdir: string | null,
+  workspace: string,
+): string {
   const slug = generateTopicSlug(summary);
-  const base = baseOutdir || path.join(process.cwd(), "wechat-article", slug);
+  const base = baseOutdir
+    ? path.resolve(baseOutdir)
+    : path.join(workspace, "wechat-article", slug);
 
   // Check if exists, add timestamp if needed
   try {
@@ -217,6 +240,58 @@ async function parseSourceFile(filePath: string): Promise<Source> {
   }
 
   return { metadata, content: body.trim() };
+}
+
+function toSourceFromNormalized(normalized: NormalizedSource): Source {
+  return {
+    metadata: {
+      title: normalized.metadata.title,
+      url: normalized.metadata.url,
+      author: normalized.metadata.author,
+      date: normalized.metadata.date,
+    },
+    content: normalized.body,
+  };
+}
+
+function toNormalizedSourceMarkdown(normalized: NormalizedSource): string {
+  const lines: string[] = [
+    "---",
+    `title: ${JSON.stringify(normalized.metadata.title)}`,
+    `source_path: ${JSON.stringify(normalized.metadata.source_path)}`,
+    `ingested_at: ${JSON.stringify(normalized.metadata.ingested_at)}`,
+  ];
+
+  const tags = normalized.metadata.tags;
+  if (tags.length === 0) {
+    lines.push("tags: []");
+  } else {
+    lines.push(`tags: [${tags.map((tag) => JSON.stringify(tag)).join(", ")}]`);
+  }
+
+  if (normalized.metadata.url) {
+    lines.push(`url: ${JSON.stringify(normalized.metadata.url)}`);
+  }
+  if (normalized.metadata.author) {
+    lines.push(`author: ${JSON.stringify(normalized.metadata.author)}`);
+  }
+  if (normalized.metadata.date) {
+    lines.push(`date: ${JSON.stringify(normalized.metadata.date)}`);
+  }
+
+  lines.push("---", "", normalized.body);
+  return lines.join("\n");
+}
+
+function renderSummaryMd(summary: AutoSummary): string {
+  const parts: string[] = ["# 素材自动总结", "", "## 一句话总结", "", summary.oneLiner];
+
+  parts.push("", "## 建议提纲", "");
+  for (const point of summary.outline) {
+    parts.push(`- ${point}`);
+  }
+
+  return parts.join("\n");
 }
 
 async function generateMergedSources(sources: Source[]): Promise<string> {
@@ -414,6 +489,10 @@ async function main(): Promise<void> {
   await loadEnv();
   const pastArticlesDir = await resolvePastArticlesDir();
 
+  if (args.workspace && args.sources.length > 0) {
+    throw new Error("--workspace and --sources cannot be used together");
+  }
+
   if (pastArticlesDir) {
     console.log(`ℹ Past articles directory: ${pastArticlesDir}`);
   } else {
@@ -422,45 +501,79 @@ async function main(): Promise<void> {
     );
   }
 
-  if (args.sources.length === 0) {
-    console.error("Error: --sources is required");
+  const workspace = path.resolve(args.workspace || process.cwd());
+  let sources: Source[] = [];
+  let summary = args.summary;
+  let outline = args.outline;
+  let workspaceSources: NormalizedSource[] | null = null;
+  let autoSummary: AutoSummary | null = null;
+
+  if (args.sources.length > 0) {
+    for (const srcPath of args.sources) {
+      const source = await parseSourceFile(srcPath);
+      sources.push(source);
+    }
+
+    if (!summary) {
+      console.error("Error: --summary is required in --sources mode");
+      printUsage();
+      process.exitCode = 1;
+      return;
+    }
+  } else {
+    const ingestResult = await ingestWorkspace(workspace);
+    workspaceSources = ingestResult.sources;
+    autoSummary = ingestResult.summary;
+    sources = workspaceSources.map(toSourceFromNormalized);
+    summary = autoSummary.oneLiner;
+    if (!outline) outline = autoSummary.outline.join(",");
+  }
+
+  if (!summary) {
+    console.error("Error: summary is required");
     printUsage();
     process.exitCode = 1;
     return;
   }
 
-  if (!args.summary) {
-    console.error("Error: --summary is required");
-    printUsage();
-    process.exitCode = 1;
-    return;
-  }
-
-  // Parse source files
-  const sources: Source[] = [];
-  for (const srcPath of args.sources) {
-    const source = await parseSourceFile(srcPath);
-    sources.push(source);
-  }
-
-  // Generate output directory
-  const outdir = generateOutputDir(args.summary, args.outdir);
+  const outdir = generateOutputDir(summary, args.outdir, workspace);
   await mkdir(outdir, { recursive: true });
   await mkdir(path.join(outdir, "sources"), { recursive: true });
   await mkdir(path.join(outdir, "04-infographics"), { recursive: true });
 
-  // Copy source files
-  for (let i = 0; i < args.sources.length; i++) {
-    const srcPath = args.sources[i];
-    if (!srcPath) continue;
-    const content = await readFile(srcPath, "utf8");
-    const basename = path.basename(srcPath);
-    const destPath = path.join(
-      outdir,
-      "sources",
-      `${String(i + 1).padStart(2, "0")}-${basename}`,
-    );
-    await writeFile(destPath, content);
+  if (workspaceSources) {
+    for (let i = 0; i < workspaceSources.length; i++) {
+      const source = workspaceSources[i];
+      if (!source) continue;
+
+      const basename = path.basename(
+        source.metadata.source_path,
+        path.extname(source.metadata.source_path),
+      );
+      const destPath = path.join(
+        outdir,
+        "sources",
+        `${String(i + 1).padStart(2, "0")}-${basename}.md`,
+      );
+      await writeFile(destPath, toNormalizedSourceMarkdown(source));
+    }
+
+    if (autoSummary) {
+      await writeFile(path.join(outdir, "00-summary.md"), renderSummaryMd(autoSummary));
+    }
+  } else {
+    for (let i = 0; i < args.sources.length; i++) {
+      const srcPath = args.sources[i];
+      if (!srcPath) continue;
+      const content = await readFile(srcPath, "utf8");
+      const basename = path.basename(srcPath);
+      const destPath = path.join(
+        outdir,
+        "sources",
+        `${String(i + 1).padStart(2, "0")}-${basename}`,
+      );
+      await writeFile(destPath, content);
+    }
   }
 
   // Generate 01-sources.md
@@ -468,30 +581,22 @@ async function main(): Promise<void> {
   await writeFile(path.join(outdir, "01-sources.md"), mergedSources);
 
   // Generate 02-outline.md
-  const outlineContent = await generateOutline(
-    args.summary,
-    args.outline,
-    sources,
-  );
+  const outlineContent = await generateOutline(summary, outline, sources);
   await writeFile(path.join(outdir, "02-outline.md"), outlineContent);
 
   // Generate 03-article.md (placeholder)
-  const articleContent = await generateArticle(
-    args.summary,
-    args.outline,
-    sources,
-  );
+  const articleContent = await generateArticle(summary, outline, sources);
   await writeFile(path.join(outdir, "03-article.md"), articleContent);
 
   // Generate 04-infographics/00-cover-prompt.md
-  const coverPromptContent = await generateCoverPrompt(args.summary);
+  const coverPromptContent = await generateCoverPrompt(summary);
   await writeFile(
     path.join(outdir, "04-infographics", "00-cover-prompt.md"),
     coverPromptContent,
   );
 
   // Generate 04-infographics/prompts.md
-  const promptsContent = await generateInfographicPrompts(args.summary);
+  const promptsContent = await generateInfographicPrompts(summary);
   await writeFile(
     path.join(outdir, "04-infographics", "prompts.md"),
     promptsContent,
@@ -499,6 +604,9 @@ async function main(): Promise<void> {
 
   console.log(`✓ Created article structure in: ${outdir}`);
   console.log(`✓ Files generated:`);
+  if (autoSummary) {
+    console.log(`  - 00-summary.md`);
+  }
   console.log(`  - 01-sources.md`);
   console.log(`  - 02-outline.md`);
   console.log(`  - 03-article.md (TODO: complete with tutorial content)`);
