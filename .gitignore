@@ -6,6 +6,7 @@ node_modules/
 dist/
 bun.lockb
 wechat-article/
+wqq-x-bookmarks-output/
 
 # Personal past articles (keep README as placeholder)
 references/past-articles/*
