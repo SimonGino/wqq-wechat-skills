@@ -10,6 +10,7 @@ import {
   resolveTweetOutputPath,
   shouldSkipTweetOutput,
 } from "./output";
+import { fetchTweetResultByRestId, shouldHydrateTweet } from "./tweet-detail";
 import type { BookmarkTweet, ExportArgs, ExportSummary } from "./types";
 
 function parsePositiveInt(input: string, flagName: string): number {
@@ -229,6 +230,46 @@ function buildFallbackTweet(tweetId: string): BookmarkTweet {
   };
 }
 
+function mergeTweetData(base: BookmarkTweet, detail: BookmarkTweet | null): BookmarkTweet {
+  if (!detail) {
+    return base;
+  }
+
+  return {
+    id: base.id,
+    username: detail.username || base.username,
+    text: detail.text || base.text,
+    url: detail.url || base.url,
+    mediaUrls: detail.mediaUrls.length > 0 ? detail.mediaUrls : base.mediaUrls,
+  };
+}
+
+async function hydrateTweetIfNeeded(
+  tweetId: string,
+  tweet: BookmarkTweet,
+  cookieMap: Record<string, string>,
+  log: (message: string) => void
+): Promise<BookmarkTweet> {
+  if (!shouldHydrateTweet(tweet)) {
+    return tweet;
+  }
+
+  try {
+    const detail = await fetchTweetResultByRestId({ tweetId, cookieMap });
+    const merged = mergeTweetData(tweet, detail);
+    if (!shouldHydrateTweet(merged)) {
+      log(`[bookmarks-export] hydrated: ${tweetId}`);
+    } else {
+      log(`[bookmarks-export] hydrate incomplete: ${tweetId}`);
+    }
+    return merged;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log(`[bookmarks-export] hydrate failed: ${tweetId} (${message})`);
+    return tweet;
+  }
+}
+
 async function exportSingleTweet(
   tweetId: string,
   tweet: BookmarkTweet,
@@ -278,7 +319,8 @@ export async function runBookmarksExport(argv: string[]): Promise<ExportSummary>
 
   const summary: ExportSummary = { success: 0, skipped: 0, failed: 0 };
   for (const tweetId of collected.tweetIds) {
-    const tweet = collected.tweetsById[tweetId] ?? buildFallbackTweet(tweetId);
+    const baseTweet = collected.tweetsById[tweetId] ?? buildFallbackTweet(tweetId);
+    const tweet = await hydrateTweetIfNeeded(tweetId, baseTweet, cookieMap, log);
     const result = await exportSingleTweet(tweetId, tweet, args, log);
     summary[result] += 1;
   }
