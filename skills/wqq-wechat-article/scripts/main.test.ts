@@ -58,7 +58,61 @@ function extractOutdir(output: string): string {
   return match[1].trim();
 }
 
+async function exists(p: string): Promise<boolean> {
+  try {
+    await readFile(p, "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 describe("wqq-wechat-article CLI", () => {
+  it("uses cwd as workspace when --workspace is absent", async () => {
+    const workspace = await mkdtemp(path.join(tmpdir(), "wechat-article-test-"));
+    await mkdir(path.join(workspace, "refs", "nested"), { recursive: true });
+    await writeFile(
+      path.join(workspace, "refs", "nested", "note.md"),
+      "# 标题\n正文",
+      "utf8",
+    );
+
+    const result = await runArticleCli([], workspace, {
+      WQQ_PAST_ARTICLES_DIR: undefined,
+    });
+
+    expect(result.code).toBe(0);
+    const outdir = extractOutdir(`${result.stdout}\n${result.stderr}`);
+    expect(await exists(path.join(outdir, "00-summary.md"))).toBeTrue();
+  });
+
+  it("uses --workspace directory when provided", async () => {
+    const caller = await mkdtemp(path.join(tmpdir(), "wechat-article-caller-"));
+    const target = await mkdtemp(path.join(tmpdir(), "wechat-article-workspace-"));
+    await writeFile(path.join(target, "source.txt"), "纯文本素材", "utf8");
+
+    const result = await runArticleCli(["--workspace", target], caller);
+    expect(result.code).toBe(0);
+    const outdir = extractOutdir(`${result.stdout}\n${result.stderr}`);
+    expect(outdir.startsWith(path.join(target, "wechat-article"))).toBeTrue();
+  });
+
+  it("rejects using --workspace with --sources together", async () => {
+    const workspace = await mkdtemp(path.join(tmpdir(), "wechat-article-test-"));
+    const sourceFile = path.join(workspace, "01.md");
+    await writeFile(sourceFile, "# t\nbody", "utf8");
+
+    const result = await runArticleCli(
+      ["--workspace", workspace, "--sources", sourceFile],
+      workspace,
+    );
+
+    expect(result.code).toBe(1);
+    expect(`${result.stdout}\n${result.stderr}`).toContain(
+      "--workspace and --sources cannot be used together",
+    );
+  });
+
   it("generates dual-crop cover prompt file", async () => {
     const workspace = await mkdtemp(path.join(tmpdir(), "wechat-article-test-"));
     const sourcesDir = path.join(workspace, "sources");

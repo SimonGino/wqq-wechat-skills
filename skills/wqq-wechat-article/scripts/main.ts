@@ -147,6 +147,12 @@ function parseArgs(argv: string[]): CliArgs {
       continue;
     }
 
+    if (a === "--workspace") {
+      const v = argv[++i];
+      if (!v) throw new Error("Missing value for --workspace");
+      continue;
+    }
+
     if (a.startsWith("-")) {
       throw new Error(`Unknown option: ${a}`);
     }
@@ -404,7 +410,8 @@ async function generateCoverPrompt(summary: string): Promise<string> {
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const rawArgs = process.argv.slice(2);
+  const args = parseArgs(rawArgs);
 
   if (args.help) {
     printUsage();
@@ -413,6 +420,10 @@ async function main(): Promise<void> {
 
   await loadEnv();
   const pastArticlesDir = await resolvePastArticlesDir();
+
+  if (rawArgs.includes("--workspace") && args.sources.length > 0) {
+    throw new Error("--workspace and --sources cannot be used together");
+  }
 
   if (pastArticlesDir) {
     console.log(`ℹ Past articles directory: ${pastArticlesDir}`);
