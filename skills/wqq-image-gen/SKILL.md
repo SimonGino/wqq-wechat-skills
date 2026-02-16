@@ -77,15 +77,20 @@ When generating one WeChat cover image to be cropped in both `1:1` and `2.35:1`:
 
 | Variable | Description |
 |----------|-------------|
-| `OPENAI_API_KEY` | OpenAI API key |
-| `GOOGLE_API_KEY` | Google API key |
+| `OPENAI_API_KEY` | OpenAI API key (required for OpenAI provider) |
+| `GOOGLE_API_KEY` | Google API key (required for Google provider) |
 | `GEMINI_API_KEY` | Alias for `GOOGLE_API_KEY` |
 | `OPENAI_IMAGE_MODEL` | Default OpenAI image model |
 | `GOOGLE_IMAGE_MODEL` | Default Google image model |
-| `OPENAI_BASE_URL` | Custom OpenAI endpoint |
-| `GOOGLE_BASE_URL` | Custom Google endpoint |
+| `OPENAI_BASE_URL` | OpenAI endpoint (required) |
+| `GOOGLE_BASE_URL` | Google endpoint (required) |
 
-Env file load order: CLI environment > process.env > `$HOME/.wqq-skills/.env`.
+Strict env policy:
+- Only loads env file from `$HOME/.wqq-skills/.env`
+- Never loads `<cwd>/.wqq-skills/.env`
+- Missing `OPENAI_BASE_URL` or `GOOGLE_BASE_URL` fails fast with explicit error
+
+Env file merge order: process.env first, then missing keys are filled from `$HOME/.wqq-skills/.env`.
 
 ## Extension Support
 
