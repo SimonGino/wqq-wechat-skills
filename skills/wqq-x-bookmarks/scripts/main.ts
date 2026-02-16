@@ -2,6 +2,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { hasRequiredXCookies, loadXCookies } from "../../shared/x-runtime/cookies";
+import { localizeMarkdownMedia } from "../../shared/x-runtime/media-localizer";
+import { tweetToMarkdown } from "../../shared/x-runtime/tweet-to-markdown";
 import { fetchBookmarksPage } from "./bookmarks-api";
 import { extractBookmarkPageDetails } from "./bookmarks-parser";
 import {
@@ -10,7 +12,6 @@ import {
   resolveTweetOutputPath,
   shouldSkipTweetOutput,
 } from "./output";
-import { fetchTweetResultByRestId, shouldHydrateTweet } from "./tweet-detail";
 import type { BookmarkTweet, ExportArgs, ExportSummary } from "./types";
 
 function parsePositiveInt(input: string, flagName: string): number {
@@ -70,108 +71,14 @@ export function parseExportArgs(argv: string[]): ExportArgs {
   return args;
 }
 
-function normalizeTweetText(raw: string): string {
-  return raw
-    .replace(/\r\n/g, "\n")
-    .replace(/\u00a0/g, " ")
-    .trim();
-}
-
-function toTitle(text: string, fallback: string): string {
-  const lines = normalizeTweetText(text)
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const firstLine = lines[0];
-  if (!firstLine) {
-    return fallback;
-  }
-  return firstLine.length > 80 ? `${firstLine.slice(0, 80)}...` : firstLine;
-}
-
-function renderTweetMarkdown(tweet: BookmarkTweet): string {
-  const title = toTitle(tweet.text, tweet.url);
-  const body = normalizeTweetText(tweet.text) || tweet.url;
-
-  const lines: string[] = [
-    "---",
-    `url: ${JSON.stringify(tweet.url)}`,
-    `authorUsername: ${JSON.stringify(tweet.username ?? "tweet")}`,
-    `tweetId: ${JSON.stringify(tweet.id)}`,
-    "---",
-    "",
-    `# ${title}`,
-    "",
-    body,
-  ];
-
-  if (tweet.mediaUrls.length > 0) {
-    lines.push("", "## Media", "");
-    for (const mediaUrl of tweet.mediaUrls) {
-      const ext = path.extname(new URL(mediaUrl).pathname).toLowerCase();
-      if (ext === ".mp4" || ext === ".mov" || ext === ".m3u8") {
-        lines.push(`[Video](${mediaUrl})`);
-      } else {
-        lines.push(`![Image](${mediaUrl})`);
-      }
+function toCookieRecord(cookieMap: Record<string, string | undefined>): Record<string, string> {
+  const output: Record<string, string> = {};
+  for (const [key, value] of Object.entries(cookieMap)) {
+    if (typeof value === "string" && value.trim()) {
+      output[key] = value;
     }
   }
-
-  return `${lines.join("\n").trimEnd()}\n`;
-}
-
-function guessFileNameFromUrl(url: string, index: number): { subDir: string; fileName: string } {
-  const parsed = new URL(url);
-  const ext = path.extname(parsed.pathname).toLowerCase();
-  const isVideo = ext === ".mp4" || ext === ".mov" || ext === ".m3u8";
-  const subDir = isVideo ? "videos" : "imgs";
-  const fallbackExt = isVideo ? ".mp4" : ".jpg";
-  const fileName = `${String(index + 1).padStart(2, "0")}${ext || fallbackExt}`;
-  return { subDir, fileName };
-}
-
-async function localizeMarkdownMedia(
-  markdown: string,
-  markdownPath: string,
-  log: (message: string) => void
-): Promise<string> {
-  const mediaPattern = /(\!?\[[^\]]*\])\((https?:\/\/[^\s)]+)\)/g;
-  const matches = [...markdown.matchAll(mediaPattern)];
-  if (matches.length === 0) {
-    return markdown;
-  }
-
-  let updated = markdown;
-  for (let i = 0; i < matches.length; i++) {
-    const match = matches[i];
-    if (!match || !match[2]) {
-      continue;
-    }
-    const mediaUrl = match[2];
-
-    try {
-      const response = await fetch(mediaUrl);
-      if (!response.ok) {
-        log(`[bookmarks-export] media download failed (${response.status}): ${mediaUrl}`);
-        continue;
-      }
-
-      const { subDir, fileName } = guessFileNameFromUrl(mediaUrl, i);
-      const mediaDir = path.join(path.dirname(markdownPath), subDir);
-      const localPath = path.join(mediaDir, fileName);
-      await mkdir(mediaDir, { recursive: true });
-      const buffer = Buffer.from(await response.arrayBuffer());
-      await writeFile(localPath, buffer);
-
-      const relativePath = path.relative(path.dirname(markdownPath), localPath).split(path.sep).join("/");
-      updated = updated.replaceAll(mediaUrl, relativePath);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      log(`[bookmarks-export] media download error: ${mediaUrl} (${message})`);
-    }
-  }
-
-  return updated;
+  return output;
 }
 
 async function collectBookmarkTweets(
@@ -219,60 +126,18 @@ async function collectBookmarkTweets(
   return { tweetIds, tweetsById };
 }
 
-function buildFallbackTweet(tweetId: string): BookmarkTweet {
-  const url = `https://x.com/i/web/status/${tweetId}`;
-  return {
-    id: tweetId,
-    text: url,
-    username: "tweet",
-    url,
-    mediaUrls: [],
-  };
-}
-
-function mergeTweetData(base: BookmarkTweet, detail: BookmarkTweet | null): BookmarkTweet {
-  if (!detail) {
-    return base;
+function resolveTweetSeedUrl(tweetId: string, tweet: BookmarkTweet | undefined): string {
+  const candidate = tweet?.url?.trim();
+  if (candidate && /^https?:\/\//i.test(candidate)) {
+    return candidate;
   }
-
-  return {
-    id: base.id,
-    username: detail.username || base.username,
-    text: detail.text || base.text,
-    url: detail.url || base.url,
-    mediaUrls: detail.mediaUrls.length > 0 ? detail.mediaUrls : base.mediaUrls,
-  };
-}
-
-async function hydrateTweetIfNeeded(
-  tweetId: string,
-  tweet: BookmarkTweet,
-  cookieMap: Record<string, string>,
-  log: (message: string) => void
-): Promise<BookmarkTweet> {
-  if (!shouldHydrateTweet(tweet)) {
-    return tweet;
-  }
-
-  try {
-    const detail = await fetchTweetResultByRestId({ tweetId, cookieMap });
-    const merged = mergeTweetData(tweet, detail);
-    if (!shouldHydrateTweet(merged)) {
-      log(`[bookmarks-export] hydrated: ${tweetId}`);
-    } else {
-      log(`[bookmarks-export] hydrate incomplete: ${tweetId}`);
-    }
-    return merged;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    log(`[bookmarks-export] hydrate failed: ${tweetId} (${message})`);
-    return tweet;
-  }
+  return `https://x.com/i/web/status/${tweetId}`;
 }
 
 async function exportSingleTweet(
   tweetId: string,
-  tweet: BookmarkTweet,
+  tweetUrl: string,
+  cookieMap: Record<string, string>,
   args: ExportArgs,
   log: (message: string) => void
 ): Promise<"success" | "skipped" | "failed"> {
@@ -283,15 +148,22 @@ async function exportSingleTweet(
   }
 
   try {
-    let markdown = renderTweetMarkdown(tweet);
+    let markdown = await tweetToMarkdown(tweetUrl, { log, cookieMap });
     const dirName = buildTweetOutputDirName(tweetId, markdown);
     const markdownPath = resolveTweetOutputPath(args.outputDir, dirName, tweetId);
+
     await mkdir(path.dirname(markdownPath), { recursive: true });
     await writeFile(markdownPath, markdown, "utf8");
 
     if (args.downloadMedia) {
-      markdown = await localizeMarkdownMedia(markdown, markdownPath, log);
-      await writeFile(markdownPath, markdown, "utf8");
+      const localized = await localizeMarkdownMedia(markdown, {
+        markdownPath,
+        log,
+      });
+      if (localized.markdown !== markdown) {
+        markdown = localized.markdown;
+        await writeFile(markdownPath, markdown, "utf8");
+      }
     }
 
     log(`[bookmarks-export] success: ${tweetId} -> ${markdownPath}`);
@@ -308,20 +180,21 @@ export async function runBookmarksExport(argv: string[]): Promise<ExportSummary>
   const log = console.log;
 
   log("[bookmarks-export] loading cookies");
-  const cookieMap = await loadXCookies(log);
-  if (!hasRequiredXCookies(cookieMap)) {
+  const rawCookieMap = await loadXCookies(log);
+  if (!hasRequiredXCookies(rawCookieMap)) {
     throw new Error("Missing auth cookies. Provide X_AUTH_TOKEN and X_CT0.");
   }
+  const cookieMap = toCookieRecord(rawCookieMap);
 
   log(`[bookmarks-export] collecting latest ${args.limit} bookmarks`);
   const collected = await collectBookmarkTweets(cookieMap, args.limit, log);
   log(`[bookmarks-export] collected ${collected.tweetIds.length} tweet ids`);
 
   const summary: ExportSummary = { success: 0, skipped: 0, failed: 0 };
+
   for (const tweetId of collected.tweetIds) {
-    const baseTweet = collected.tweetsById[tweetId] ?? buildFallbackTweet(tweetId);
-    const tweet = await hydrateTweetIfNeeded(tweetId, baseTweet, cookieMap, log);
-    const result = await exportSingleTweet(tweetId, tweet, args, log);
+    const tweetUrl = resolveTweetSeedUrl(tweetId, collected.tweetsById[tweetId]);
+    const result = await exportSingleTweet(tweetId, tweetUrl, cookieMap, args, log);
     summary[result] += 1;
   }
 

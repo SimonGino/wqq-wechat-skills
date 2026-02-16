@@ -76,6 +76,18 @@ export function buildFieldToggleMap(keys: string[]): Record<string, boolean> {
   return toggles;
 }
 
+export function buildTweetFieldToggleMap(keys: string[]): Record<string, boolean> {
+  const toggles: Record<string, boolean> = {};
+  for (const key of keys) {
+    if (key === "withGrokAnalyze" || key === "withDisallowedReplyControls") {
+      toggles[key] = false;
+    } else {
+      toggles[key] = true;
+    }
+  }
+  return toggles;
+}
+
 export function buildRequestHeaders(
   cookieMap: XCookieMap,
   userAgent: string = DEFAULT_USER_AGENT,
