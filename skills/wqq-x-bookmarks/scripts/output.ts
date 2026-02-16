@@ -9,6 +9,35 @@ function sanitizePathSegment(input: string): string {
     .slice(0, 48);
 }
 
+const TWITTER_EPOCH_MS = 1288834974657n;
+
+function formatUtcTimestamp(ms: bigint): string {
+  const date = new Date(Number(ms));
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const pad2 = (value: number): string => String(value).padStart(2, "0");
+  return [
+    `${date.getUTCFullYear()}${pad2(date.getUTCMonth() + 1)}${pad2(date.getUTCDate())}`,
+    `${pad2(date.getUTCHours())}${pad2(date.getUTCMinutes())}${pad2(date.getUTCSeconds())}`,
+  ].join("-");
+}
+
+function buildTimestampPrefixFromTweetId(tweetId: string): string {
+  if (!/^\d+$/.test(tweetId)) {
+    return "";
+  }
+
+  try {
+    const snowflake = BigInt(tweetId);
+    const timestampMs = (snowflake >> 22n) + TWITTER_EPOCH_MS;
+    return formatUtcTimestamp(timestampMs);
+  } catch {
+    return "";
+  }
+}
+
 function extractFrontMatterField(markdown: string, key: string): string | null {
   const frontMatterMatch = markdown.match(/^---\n([\s\S]*?)\n---/);
   if (!frontMatterMatch?.[1]) {
@@ -38,9 +67,10 @@ function extractPreviewText(markdown: string): string {
 }
 
 export function buildTweetOutputDirName(tweetId: string, markdown: string): string {
+  const timestamp = buildTimestampPrefixFromTweetId(tweetId);
   const preview = sanitizePathSegment(extractPreviewText(markdown));
   const author = sanitizePathSegment(extractFrontMatterField(markdown, "authorUsername") || "tweet");
-  return [preview, author, tweetId].filter(Boolean).join("-");
+  return [timestamp, preview, author, tweetId].filter(Boolean).join("-");
 }
 
 export function resolveTweetOutputPath(baseDir: string, dirName: string, tweetId: string): string {

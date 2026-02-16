@@ -5,16 +5,16 @@ import path from "node:path";
 import { buildTweetOutputDirName, findExistingTweetMarkdownPath } from "./output";
 
 describe("buildTweetOutputDirName", () => {
-  test("uses title-author-id order", () => {
+  test("uses timestamp-title-author-id order", () => {
     const markdown = `---
 authorUsername: "AI_Jasonyu"
 ---
 
 # AI 增长框架
 正文`;
-    const dir = buildTweetOutputDirName("2022", markdown);
-    expect(dir.startsWith("AI-增长框架-")).toBe(true);
-    expect(dir).toContain("-AI_Jasonyu-2022");
+    const dir = buildTweetOutputDirName("2010076957938188661", markdown);
+    expect(dir.startsWith("20260110-195106-AI-增长框架-")).toBe(true);
+    expect(dir).toContain("-AI_Jasonyu-2010076957938188661");
   });
 });
 
