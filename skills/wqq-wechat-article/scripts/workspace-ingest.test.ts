@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import path from "node:path";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { scanWorkspaceSources } from "./workspace-ingest";
+import { normalizeSource, scanWorkspaceSources } from "./workspace-ingest";
 
 describe("scanWorkspaceSources", () => {
   it("recursively scans only .md/.txt files", async () => {
@@ -44,5 +44,39 @@ describe("scanWorkspaceSources", () => {
     const files = await scanWorkspaceSources(workspace);
 
     expect(files).toEqual([validFile]);
+  });
+});
+
+describe("normalizeSource", () => {
+  it("fills minimal front matter when missing", () => {
+    const rawPath = path.join("/tmp", "文件名回退标题.md");
+    const nowIso = "2026-02-16T10:00:00.000Z";
+    const normalized = normalizeSource(rawPath, "纯文本正文", nowIso);
+
+    expect(normalized.metadata.title).toBe("文件名回退标题");
+    expect(normalized.metadata.source_path).toBe(rawPath);
+    expect(normalized.metadata.ingested_at).toBe(nowIso);
+    expect(normalized.metadata.tags).toEqual([]);
+    expect(normalized.body).toBe("纯文本正文");
+  });
+
+  it("resolves title by yaml > h1 > filename", () => {
+    const nowIso = "2026-02-16T10:00:00.000Z";
+
+    const yamlTitlePath = path.join("/tmp", "yaml.md");
+    const yamlTitleSource = normalizeSource(
+      yamlTitlePath,
+      "---\ntitle: 来自YAML\n---\n# 标题1\n正文",
+      nowIso,
+    );
+    expect(yamlTitleSource.metadata.title).toBe("来自YAML");
+
+    const h1Path = path.join("/tmp", "h1.md");
+    const h1Source = normalizeSource(h1Path, "# 来自H1\n正文", nowIso);
+    expect(h1Source.metadata.title).toBe("来自H1");
+
+    const fallbackPath = path.join("/tmp", "来自文件名.md");
+    const fallbackSource = normalizeSource(fallbackPath, "无标题正文", nowIso);
+    expect(fallbackSource.metadata.title).toBe("来自文件名");
   });
 });
