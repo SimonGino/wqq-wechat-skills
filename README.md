@@ -6,8 +6,9 @@
 
 ## MVP 能力
 
-- 手动整理素材（Markdown）
+- 自动扫描 workspace 内 `md/txt` 素材（递归）
 - 自动生成教程文章骨架与草稿
+- 自动生成 `00-summary.md`（一句话总结 + 提纲）
 - 自动生成公众号封面 prompt（双裁切规范）
 - 自动生成信息图 prompts（可选再生成图片）
 
@@ -38,18 +39,9 @@
 
 ### 方案 A：直接用技能（推荐）
 
-1) 准备素材文件（Markdown + YAML 元信息）
-
-```markdown
----
-title: 资料标题
-url: https://example.com
-author: 作者名
-date: 2026-01-28
----
-
-这里是你摘录的内容与理解。
-```
+1) 在当前工作目录放入素材（支持 `*.md`、`*.txt`，会递归扫描子目录）
+  - 默认排除目录：`.git`、`node_modules`、`wechat-article`
+  - 缺失 front matter 会自动补齐最小字段（`title/source_path/ingested_at/tags`）
 
 2) 在 Claude Code 中执行：
 
@@ -61,9 +53,19 @@ date: 2026-01-28
 
 ### 方案 B：命令行直接执行
 
-1) 先准备好 `sources/*.md`
+1) workspace-first（推荐，默认使用当前目录）
 
-2) 生成文章结构：
+```bash
+npx -y bun skills/wqq-wechat-article/scripts/main.ts
+```
+
+或指定 workspace：
+
+```bash
+npx -y bun skills/wqq-wechat-article/scripts/main.ts --workspace /path/to/workspace
+```
+
+2) legacy 模式（兼容旧参数）
 
 ```bash
 npx -y bun skills/wqq-wechat-article/scripts/main.ts \
@@ -75,7 +77,8 @@ npx -y bun skills/wqq-wechat-article/scripts/main.ts \
 输出目录示例：
 
 ```text
-wechat-article/<topic>/
+<workspace>/wechat-article/<topic>/
+  00-summary.md
   sources/
   01-sources.md
   02-outline.md
@@ -118,9 +121,11 @@ npx -y bun skills/wqq-image-gen/scripts/main.ts \
 mkdir -p ~/.wqq-skills
 cat > ~/.wqq-skills/.env << 'EOF'
 OPENAI_API_KEY=sk-xxx
+OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_IMAGE_MODEL=gpt-image-1.5
 
 GOOGLE_API_KEY=xxx
+GOOGLE_BASE_URL=https://generativelanguage.googleapis.com/v1beta
 GOOGLE_IMAGE_MODEL=gemini-3-pro-image-preview
 
 # 可选：你的历史公众号文章目录（不配置则跳过历史文章参考步骤）
@@ -128,7 +133,7 @@ WQQ_PAST_ARTICLES_DIR=/absolute/path/to/your/past-articles
 EOF
 ```
 
-- `wqq-image-gen` 会自动读取 OpenAI / Google 相关配置。
+- `wqq-image-gen` 仅从 `~/.wqq-skills/.env` 读取配置，且 `OPENAI_BASE_URL/GOOGLE_BASE_URL` 必填。
 - `wqq-wechat-article` 会读取 `WQQ_PAST_ARTICLES_DIR`：
   - 配置且目录存在：读取该目录下的历史文章作为风格参考
   - 未配置：跳过历史文章步骤（不会再去猜测其他目录）

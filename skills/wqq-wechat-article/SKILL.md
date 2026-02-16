@@ -1,6 +1,6 @@
 ---
 name: wqq-wechat-article
-description: Creates Chinese tutorial-style WeChat articles from pasted URL sources and a user-written one-sentence summary/outline. Outputs Markdown, a dual-crop cover prompt, and infographic prompts. Use when user mentions "公众号文章", "教程", "写文章大纲", or wants to turn links into a tutorial.
+description: Creates Chinese tutorial-style WeChat articles in workspace-first mode. It scans local md/txt sources, normalizes metadata, auto-generates 00-summary.md, and outputs article + image prompts.
 ---
 
 # WeChat Tutorial Article Workflow (MVP)
@@ -51,6 +51,20 @@ WQQ_PAST_ARTICLES_DIR=/absolute/path/to/your/past-articles
 
 ## Usage
 
+### Workspace-first defaults
+
+- 默认 workspace = 当前工作目录（`cwd`）
+- 可通过 `--workspace <path>` 覆盖
+- `--workspace` 与 `--sources` 不能同时使用
+- 扫描规则：递归查找 `*.md` / `*.txt`
+- 默认排除目录：`.git`、`node_modules`、`wechat-article`
+
+如果 front matter 缺失，系统会自动补齐最小字段：
+- `title`（回退优先级：YAML title > 首个 H1 > 文件名）
+- `source_path`
+- `ingested_at`
+- `tags`
+
 输入（MVP）：
 - 你手动收集的 sources（Markdown 文件，建议包含：来源、标题、摘录、你的理解）
 - 你自己写的：一句话总结 + 可选要点大纲（偏教程：是什么/怎么用/注意事项）
@@ -72,6 +86,7 @@ Create an output directory per article:
 
 ```
 wechat-article/<topic-slug>/
+  00-summary.md
   sources/
     01-source-<slug>.md
     02-source-<slug>.md
@@ -99,12 +114,14 @@ wechat-article/<topic-slug>/
 
 ### Step 1: Create Output Directory
 
-1. 从一句话总结里提取主题 → 生成 `<topic-slug>`。
-2. 在 `wechat-article/` 下创建输出目录（冲突就加时间戳）。
+1. 解析 workspace（默认 `cwd`，或 `--workspace`）。
+2. 递归扫描 workspace 中的 `*.md/*.txt`，排除 `.git`、`node_modules`、`wechat-article`。
+3. 自动生成一句话总结并提取主题 → `<topic-slug>`。
+4. 在 `<workspace>/wechat-article/` 下创建输出目录（冲突就加时间戳）。
 
 ### Step 2: Ingest Sources (URLs → Markdown)
 
-把你手动整理的 sources 放在：
+将扫描到的素材标准化后写入：
 
 `<outdir>/sources/NN-source-<slug>.md`
 
