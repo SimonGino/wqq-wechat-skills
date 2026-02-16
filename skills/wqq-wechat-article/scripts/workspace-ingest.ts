@@ -24,6 +24,11 @@ export type NormalizedSource = {
   body: string;
 };
 
+export type AutoSummary = {
+  oneLiner: string;
+  outline: string[];
+};
+
 export async function scanWorkspaceSources(workspace: string): Promise<string[]> {
   const files: string[] = [];
   const excluded = new Set([".git", "node_modules", "wechat-article"]);
@@ -147,5 +152,29 @@ export function normalizeSource(
       date: yaml.date,
     },
     body: body.trim(),
+  };
+}
+
+export function buildAutoSummary(
+  sources: Array<{ metadata: { title: string } }>,
+): AutoSummary {
+  const topic = sources
+    .slice(0, 3)
+    .map((source) => source.metadata.title)
+    .join("、");
+
+  const oneLiner = topic
+    ? `这篇文章将基于 ${topic}，给出可直接落地的操作指南。`
+    : "这篇文章将提供一套可直接落地的实战操作指南。";
+
+  return {
+    oneLiner,
+    outline: [
+      "背景与问题定义",
+      "安装与初始化",
+      "核心配置与执行步骤",
+      "常见错误与排查",
+      "落地清单与下一步",
+    ],
   };
 }

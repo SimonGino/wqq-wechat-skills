@@ -2,7 +2,11 @@ import { describe, expect, it } from "bun:test";
 import path from "node:path";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { normalizeSource, scanWorkspaceSources } from "./workspace-ingest";
+import {
+  buildAutoSummary,
+  normalizeSource,
+  scanWorkspaceSources,
+} from "./workspace-ingest";
 
 describe("scanWorkspaceSources", () => {
   it("recursively scans only .md/.txt files", async () => {
@@ -78,5 +82,18 @@ describe("normalizeSource", () => {
     const fallbackPath = path.join("/tmp", "来自文件名.md");
     const fallbackSource = normalizeSource(fallbackPath, "无标题正文", nowIso);
     expect(fallbackSource.metadata.title).toBe("来自文件名");
+  });
+});
+
+describe("buildAutoSummary", () => {
+  it("builds auto summary and 3-5 outline points", () => {
+    const summary = buildAutoSummary([
+      { metadata: { title: "A" } },
+      { metadata: { title: "B" } },
+    ]);
+
+    expect(summary.oneLiner.length).toBeGreaterThan(0);
+    expect(summary.outline.length).toBeGreaterThanOrEqual(3);
+    expect(summary.outline.length).toBeLessThanOrEqual(5);
   });
 });
