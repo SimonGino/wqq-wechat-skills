@@ -4,6 +4,14 @@ export function getDefaultModel(): string {
   return process.env.OPENAI_IMAGE_MODEL || "gpt-image-1.5";
 }
 
+function getOpenAIBaseUrl(): string {
+  const baseURL = process.env.OPENAI_BASE_URL?.trim();
+  if (!baseURL) {
+    throw new Error("OPENAI_BASE_URL is required");
+  }
+  return baseURL.replace(/\/+$/g, "");
+}
+
 function parseAspectRatio(ar: string): { width: number; height: number } | null {
   const match = ar.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
   if (!match) return null;
@@ -52,7 +60,7 @@ function getOpenAISize(model: string, ar: string | null): string {
 }
 
 export async function generateImage(prompt: string, model: string, args: CliArgs): Promise<Uint8Array> {
-  const baseURL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
+  const baseURL = getOpenAIBaseUrl();
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) throw new Error("OPENAI_API_KEY is required");

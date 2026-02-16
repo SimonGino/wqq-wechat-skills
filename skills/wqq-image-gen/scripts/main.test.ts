@@ -95,4 +95,60 @@ describe("wqq-image-gen env loading", () => {
       "OPENAI_API_KEY is required",
     );
   });
+
+  it("fails when OPENAI_BASE_URL is missing in strict mode", async () => {
+    const workspace = await mkdtemp(path.join(tmpdir(), "image-gen-cwd-"));
+    const fakeHome = await mkdtemp(path.join(tmpdir(), "image-gen-home-"));
+    await writeEnvFile(fakeHome, "OPENAI_API_KEY=home-key\n");
+
+    const result = await runImageCli(
+      [
+        "--prompt",
+        "test prompt",
+        "--image",
+        "out.png",
+        "--provider",
+        "openai",
+      ],
+      workspace,
+      {
+        HOME: fakeHome,
+        OPENAI_API_KEY: "",
+        OPENAI_BASE_URL: "",
+      },
+    );
+
+    expect(result.code).toBe(1);
+    expect(`${result.stdout}\n${result.stderr}`).toContain(
+      "OPENAI_BASE_URL is required",
+    );
+  });
+
+  it("fails when GOOGLE_BASE_URL is missing in strict mode", async () => {
+    const workspace = await mkdtemp(path.join(tmpdir(), "image-gen-cwd-"));
+    const fakeHome = await mkdtemp(path.join(tmpdir(), "image-gen-home-"));
+    await writeEnvFile(fakeHome, "GOOGLE_API_KEY=home-key\n");
+
+    const result = await runImageCli(
+      [
+        "--prompt",
+        "test prompt",
+        "--image",
+        "out.png",
+        "--provider",
+        "google",
+      ],
+      workspace,
+      {
+        HOME: fakeHome,
+        GOOGLE_API_KEY: "",
+        GOOGLE_BASE_URL: "",
+      },
+    );
+
+    expect(result.code).toBe(1);
+    expect(`${result.stdout}\n${result.stderr}`).toContain(
+      "GOOGLE_BASE_URL is required",
+    );
+  });
 });
