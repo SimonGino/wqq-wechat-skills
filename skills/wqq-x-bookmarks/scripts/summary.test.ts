@@ -23,21 +23,21 @@ I have used Claude Code for years and this is my playbook.
 });
 
 describe("renderBookmarkSummaryMarkdown", () => {
-  test("renders list from entries", () => {
+  test("renders three-part summary format", () => {
     const markdown = renderBookmarkSummaryMarkdown([
       {
         tweetId: "1",
         title: "A title",
         authorUsername: "alice",
         url: "https://x.com/alice/status/1",
-        excerpt: "One line summary",
+        oneLineSummary: "这是一句话摘要",
+        relevanceReason: "它解释了工程实践中的关键取舍",
         relativePath: "20260110-100000-a-alice-1/1.md",
       },
     ]);
 
-    expect(markdown).toContain("# X Bookmarks Summary");
-    expect(markdown).toContain("A title");
-    expect(markdown).toContain("One line summary");
-    expect(markdown).toContain("20260110-100000-a-alice-1/1.md");
+    expect(markdown).toContain("一句话摘要：这是一句话摘要");
+    expect(markdown).toContain("相关性说明：它解释了工程实践中的关键取舍");
+    expect(markdown).toContain("来源链接：[原帖](https://x.com/alice/status/1)");
   });
 });

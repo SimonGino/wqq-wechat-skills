@@ -11,8 +11,17 @@ export type BookmarkSummaryEntry = {
   title: string;
   authorUsername: string;
   url: string;
-  excerpt: string;
+  oneLineSummary: string;
+  relevanceReason: string;
   relativePath: string;
+};
+
+export type ParsedBookmarkSummary = {
+  tweetId: string;
+  title: string;
+  authorUsername: string;
+  url: string;
+  excerpt: string;
 };
 
 function extractFrontMatter(markdown: string): string {
@@ -56,7 +65,7 @@ function extractExcerpt(body: string): string {
   return "";
 }
 
-export function parseBookmarkMarkdown(tweetId: string, markdown: string): Omit<BookmarkSummaryEntry, "relativePath"> {
+export function parseBookmarkMarkdown(tweetId: string, markdown: string): ParsedBookmarkSummary {
   const frontMatter = extractFrontMatter(markdown);
   const body = extractBody(markdown);
   return {
@@ -84,8 +93,9 @@ export function renderBookmarkSummaryMarkdown(entries: BookmarkSummaryEntry[]): 
     if (!entry) continue;
     lines.push(`${i + 1}. [${entry.title}](${entry.relativePath})`);
     lines.push(`TweetId: \`${entry.tweetId}\` | Author: @${entry.authorUsername}`);
-    lines.push(`URL: ${entry.url}`);
-    lines.push(`Summary: ${entry.excerpt || "(empty)"}`);
+    lines.push(`一句话摘要：${entry.oneLineSummary || "(empty)"}`);
+    lines.push(`相关性说明：${entry.relevanceReason || "(empty)"}`);
+    lines.push(`来源链接：[原帖](${entry.url})`);
     lines.push("");
   }
 
@@ -107,7 +117,12 @@ export async function writeBookmarkSummary(
       const markdown = await readFile(source.markdownPath, "utf8");
       const parsed = parseBookmarkMarkdown(source.tweetId, markdown);
       entries.push({
-        ...parsed,
+        tweetId: parsed.tweetId,
+        title: parsed.title,
+        authorUsername: parsed.authorUsername,
+        url: parsed.url,
+        oneLineSummary: parsed.excerpt,
+        relevanceReason: "与技术实践相关，建议按需阅读原文。",
         relativePath: path.relative(outputDir, source.markdownPath).split(path.sep).join("/"),
       });
     } catch (error) {
