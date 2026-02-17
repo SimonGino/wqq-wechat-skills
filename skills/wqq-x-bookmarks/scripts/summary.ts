@@ -32,6 +32,8 @@ type AiSummaryResult = {
 
 const FALLBACK_RELEVANCE_REASON = "与技术实践相关，建议按需阅读原文。";
 const OPENAI_API_KEY_MISSING_ERROR = "Missing OPENAI_API_KEY. Set OPENAI_API_KEY to enable --with-summary.";
+const AI_SYSTEM_PROMPT =
+  "You summarize X bookmarks for Chinese readers. Reply in exactly two lines with labels: 一句话摘要：... and 相关性说明：...";
 
 function isMissingOpenAiApiKeyError(error: unknown): boolean {
   return error instanceof Error && error.message === OPENAI_API_KEY_MISSING_ERROR;
@@ -99,6 +101,199 @@ function extractExcerpt(body: string): string {
   return "";
 }
 
+function appendIfText(target: string[], value: unknown): void {
+  if (typeof value !== "string") {
+    return;
+  }
+
+  const text = value.trim();
+  if (text) {
+    target.push(text);
+  }
+}
+
+function extractTextFromContentItem(item: unknown): string {
+  if (typeof item === "string") {
+    return item.trim();
+  }
+
+  if (!item || typeof item !== "object") {
+    return "";
+  }
+
+  const record = item as Record<string, unknown>;
+  const lines: string[] = [];
+  appendIfText(lines, record.text);
+  appendIfText(lines, record.output_text);
+
+  return lines.join("\n").trim();
+}
+
+function extractResponsesText(data: unknown): string {
+  if (!data || typeof data !== "object") {
+    return "";
+  }
+
+  const record = data as Record<string, unknown>;
+  const lines: string[] = [];
+
+  appendIfText(lines, record.output_text);
+  if (Array.isArray(record.output_text)) {
+    for (const item of record.output_text) {
+      appendIfText(lines, item);
+      if (item && typeof item === "object") {
+        appendIfText(lines, (item as Record<string, unknown>).text);
+      }
+    }
+  }
+
+  if (Array.isArray(record.output)) {
+    for (const outputItem of record.output) {
+      if (!outputItem || typeof outputItem !== "object") {
+        continue;
+      }
+
+      const outputRecord = outputItem as Record<string, unknown>;
+      const content = outputRecord.content;
+      if (!Array.isArray(content)) {
+        continue;
+      }
+
+      for (const contentItem of content) {
+        appendIfText(lines, extractTextFromContentItem(contentItem));
+      }
+    }
+  }
+
+  return lines.join("\n").trim();
+}
+
+function extractChatCompletionsText(data: unknown): string {
+  if (!data || typeof data !== "object") {
+    return "";
+  }
+
+  const record = data as Record<string, unknown>;
+  const choices = record.choices;
+  if (!Array.isArray(choices) || choices.length === 0) {
+    return "";
+  }
+
+  const firstChoice = choices[0];
+  if (!firstChoice || typeof firstChoice !== "object") {
+    return "";
+  }
+
+  const message = (firstChoice as Record<string, unknown>).message;
+  if (!message || typeof message !== "object") {
+    return "";
+  }
+
+  const content = (message as Record<string, unknown>).content;
+  if (typeof content === "string") {
+    return content.trim();
+  }
+
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  const lines: string[] = [];
+  for (const item of content) {
+    appendIfText(lines, extractTextFromContentItem(item));
+  }
+
+  return lines.join("\n").trim();
+}
+
+function buildUserPrompt(markdown: string): string {
+  return `请总结下面内容并只输出两行：\n一句话摘要：...\n相关性说明：...\n\n${markdown}`;
+}
+
+async function requestResponsesSummaryContent(input: {
+  fetchImpl: typeof fetch;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  markdown: string;
+}): Promise<string> {
+  const response = await input.fetchImpl(`${input.baseUrl}/responses`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${input.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: input.model,
+      input: [
+        {
+          role: "system",
+          content: [{ type: "input_text", text: AI_SYSTEM_PROMPT }],
+        },
+        {
+          role: "user",
+          content: [{ type: "input_text", text: buildUserPrompt(input.markdown) }],
+        },
+      ],
+      store: false,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI /responses request failed: ${response.status}`);
+  }
+
+  const data = (await response.json()) as unknown;
+  const content = extractResponsesText(data);
+  if (!content) {
+    throw new Error("OpenAI /responses response format is invalid");
+  }
+
+  return content;
+}
+
+async function requestChatCompletionsSummaryContent(input: {
+  fetchImpl: typeof fetch;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  markdown: string;
+}): Promise<string> {
+  const response = await input.fetchImpl(`${input.baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${input.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: input.model,
+      temperature: 0.2,
+      messages: [
+        {
+          role: "system",
+          content: AI_SYSTEM_PROMPT,
+        },
+        {
+          role: "user",
+          content: buildUserPrompt(input.markdown),
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI /chat/completions request failed: ${response.status}`);
+  }
+
+  const data = (await response.json()) as unknown;
+  const content = extractChatCompletionsText(data);
+  if (!content) {
+    throw new Error("OpenAI /chat/completions response format is invalid");
+  }
+
+  return content;
+}
+
 export function parseBookmarkMarkdown(tweetId: string, markdown: string): ParsedBookmarkSummary {
   const frontMatter = extractFrontMatter(markdown);
   const body = extractBody(markdown);
@@ -128,42 +323,41 @@ export async function generateAiSummaryForBookmark(input: {
 
   const fetchImpl = input.fetchImpl || fetch;
   const baseUrl = (env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
+  const model = env.OPENAI_MODEL || "gpt-4o-mini";
 
   try {
-    const response = await fetchImpl(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: env.OPENAI_MODEL || "gpt-4o-mini",
-        temperature: 0.2,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You summarize X bookmarks for Chinese readers. Reply in exactly two lines with labels: 一句话摘要：... and 相关性说明：...",
-          },
-          {
-            role: "user",
-            content: `请总结下面内容并只输出两行：\n一句话摘要：...\n相关性说明：...\n\n${input.markdown}`,
-          },
-        ],
-      }),
+    const content = await requestResponsesSummaryContent({
+      fetchImpl,
+      baseUrl,
+      apiKey,
+      model,
+      markdown: input.markdown,
     });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI request failed: ${response.status}`);
-    }
-
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const content = data.choices?.[0]?.message?.content || "";
     const parsed = parseAiSummaryContent(content);
     if (!parsed) {
-      throw new Error("OpenAI response format is invalid");
+      throw new Error("OpenAI /responses summary format is invalid");
+    }
+
+    return {
+      ...parsed,
+      usedFallback: false,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    input.log?.(`[bookmarks-export] ai summary responses fallback to chat: ${input.url} (${message})`);
+  }
+
+  try {
+    const content = await requestChatCompletionsSummaryContent({
+      fetchImpl,
+      baseUrl,
+      apiKey,
+      model,
+      markdown: input.markdown,
+    });
+    const parsed = parseAiSummaryContent(content);
+    if (!parsed) {
+      throw new Error("OpenAI /chat/completions summary format is invalid");
     }
 
     return {

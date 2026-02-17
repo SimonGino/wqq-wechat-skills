@@ -68,20 +68,26 @@ describe("generateAiSummaryForBookmark", () => {
     expect((capturedError as Error).message).toContain("OPENAI_API_KEY");
   });
 
-  test("returns structured summary from OpenAI response", async () => {
-    const fakeFetch = async () =>
-      new Response(
+  test("returns structured summary from responses endpoint", async () => {
+    const calls: string[] = [];
+    const fakeFetch = async (input: string | URL | Request) => {
+      calls.push(String(input));
+      return new Response(
         JSON.stringify({
-          choices: [
+          output: [
             {
-              message: {
-                content: "一句话摘要：这是测试摘要\n相关性说明：这条内容与工程实践直接相关",
-              },
+              content: [
+                {
+                  type: "output_text",
+                  text: "一句话摘要：这是测试摘要\n相关性说明：这条内容与工程实践直接相关",
+                },
+              ],
             },
           ],
         }),
         { status: 200, headers: { "content-type": "application/json" } }
       );
+    };
 
     const result = await generateAiSummaryForBookmark({
       markdown: "# Title\n\nBody",
@@ -97,10 +103,69 @@ describe("generateAiSummaryForBookmark", () => {
     expect(result.oneLineSummary).toContain("测试摘要");
     expect(result.relevanceReason).toContain("工程实践");
     expect(result.usedFallback).toBe(false);
+    expect(calls).toEqual(["https://api.openai.com/v1/responses"]);
   });
 
-  test("falls back when OpenAI request fails", async () => {
-    const fakeFetch = async () => {
+  test("falls back to chat completions when responses endpoint fails", async () => {
+    const calls: string[] = [];
+    const fakeFetch = async (input: string | URL | Request) => {
+      const url = String(input);
+      calls.push(url);
+
+      if (url.endsWith("/responses")) {
+        return new Response(JSON.stringify({ error: { message: "not found" } }), {
+          status: 404,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: "一句话摘要：来自 chat 的摘要\n相关性说明：chat 回退成功",
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    };
+
+    const result = await generateAiSummaryForBookmark({
+      markdown: "# Title\n\nBody",
+      fallbackExcerpt: "Fallback excerpt",
+      url: "https://x.com/a/status/1",
+      fetchImpl: fakeFetch as unknown as typeof fetch,
+      env: {
+        OPENAI_API_KEY: "test-key",
+        OPENAI_BASE_URL: "https://api.openai.com/v1",
+      } as NodeJS.ProcessEnv,
+    });
+
+    expect(result.oneLineSummary).toContain("chat 的摘要");
+    expect(result.relevanceReason).toContain("回退成功");
+    expect(result.usedFallback).toBe(false);
+    expect(calls).toEqual([
+      "https://api.openai.com/v1/responses",
+      "https://api.openai.com/v1/chat/completions",
+    ]);
+  });
+
+  test("falls back when both endpoints fail", async () => {
+    const calls: string[] = [];
+    const fakeFetch = async (input: string | URL | Request) => {
+      const url = String(input);
+      calls.push(url);
+
+      if (url.endsWith("/responses")) {
+        return new Response(JSON.stringify({ error: { message: "server error" } }), {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
       throw new Error("network");
     };
 
@@ -118,6 +183,10 @@ describe("generateAiSummaryForBookmark", () => {
     expect(result.oneLineSummary).toBe("Fallback excerpt");
     expect(result.relevanceReason).toContain("技术实践相关");
     expect(result.usedFallback).toBe(true);
+    expect(calls).toEqual([
+      "https://api.openai.com/v1/responses",
+      "https://api.openai.com/v1/chat/completions",
+    ]);
   });
 });
 
@@ -171,20 +240,27 @@ Body`
     const originalFetch = globalThis.fetch;
     const originalApiKey = process.env.OPENAI_API_KEY;
     const originalBaseUrl = process.env.OPENAI_BASE_URL;
+    const calls: string[] = [];
 
-    globalThis.fetch = ((async () =>
-      new Response(
+    globalThis.fetch = ((async (input: string | URL | Request) => {
+      calls.push(String(input));
+      return new Response(
         JSON.stringify({
-          choices: [
+          output: [
             {
-              message: {
-                content: "一句话摘要：AI 摘要\n相关性说明：AI 相关性",
-              },
+              content: [
+                {
+                  type: "output_text",
+                  text: "一句话摘要：AI 摘要\n相关性说明：AI 相关性",
+                },
+              ],
             },
           ],
         }),
         { status: 200, headers: { "content-type": "application/json" } }
-      )) as unknown) as typeof fetch;
+      );
+    }) as unknown) as typeof fetch;
+
     process.env.OPENAI_API_KEY = "test-key";
     process.env.OPENAI_BASE_URL = "https://api.openai.com/v1";
 
@@ -194,6 +270,7 @@ Body`
 
       expect(text).toContain("一句话摘要：AI 摘要");
       expect(text).toContain("相关性说明：AI 相关性");
+      expect(calls).toEqual(["https://api.openai.com/v1/responses"]);
     } finally {
       globalThis.fetch = originalFetch;
       if (originalApiKey === undefined) {
