@@ -39,11 +39,34 @@ npx -y bun skills/wqq-x-bookmarks/scripts/main.ts
 npx -y bun skills/wqq-x-bookmarks/scripts/main.ts --limit 10
 npx -y bun skills/wqq-x-bookmarks/scripts/main.ts --output /tmp/wqq-x-bookmarks-demo
 npx -y bun skills/wqq-x-bookmarks/scripts/main.ts --no-download-media
+npx -y bun skills/wqq-x-bookmarks/scripts/main.ts --limit 10 --with-summary
 ```
+
+## AI 汇总（`--with-summary`）
+
+启用后会生成 `SUMMARY.md`，每条包含三段式：
+- 一句话摘要
+- 相关性说明
+- 来源链接
+
+环境变量：
+
+```bash
+export OPENAI_API_KEY="..."
+# 可选，默认 https://api.openai.com/v1
+export OPENAI_BASE_URL="https://api.openai.com/v1"
+# 可选，默认 gpt-4o-mini
+export OPENAI_MODEL="gpt-4o-mini"
+```
+
+行为说明：
+- 缺少 `OPENAI_API_KEY`：直接报错
+- OpenAI 调用失败或返回格式异常：自动回退规则摘要，不中断导出
 
 ## 输出结构
 
 ```text
+<output>/SUMMARY.md                         # only when --with-summary
 <output>/<标题-作者-id>/<tweetId>.md
 <output>/<标题-作者-id>/imgs/*
 <output>/<标题-作者-id>/videos/*
