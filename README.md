@@ -3,6 +3,7 @@
 这是一个面向微信公众号教程写作的个人技能仓库，包含：
 - `wqq-wechat-article`：把素材整理成教程型公众号文章
 - `wqq-image-gen`：生成封面图与信息图（OpenAI / Google）
+- `wqq-x-bookmarks`：导出 X 书签为 Markdown（支持 debug 与 skip）
 
 ## MVP 能力
 
@@ -34,6 +35,16 @@
 适用场景：
 - 公众号封面图
 - 文中信息图（流程图、清单卡、对比图等）
+
+### 3) X 书签导出
+
+```bash
+# 先验证认证
+npx -y bun skills/wqq-x-bookmarks/scripts/debug.ts --count 5 --save-raw
+
+# 再导出（默认 50 条，默认下载媒体）
+npx -y bun skills/wqq-x-bookmarks/scripts/main.ts --limit 10 --output /tmp/wqq-x-bookmarks-demo
+```
 
 ## 推荐工作流（MVP）
 
@@ -164,6 +175,7 @@ skills/
   shared/              # 公共工具
   wqq-image-gen/       # 图片生成技能
   wqq-wechat-article/  # 文章生成技能
+  wqq-x-bookmarks/     # X 书签导出技能
 scripts/
   smoke-test.sh        # 冒烟测试脚本
 ```
