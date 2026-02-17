@@ -51,6 +51,23 @@ describe("renderBookmarkSummaryMarkdown", () => {
 });
 
 describe("generateAiSummaryForBookmark", () => {
+  test("throws when OPENAI_API_KEY is missing", async () => {
+    let capturedError: unknown;
+    try {
+      await generateAiSummaryForBookmark({
+        markdown: "# Title\n\nBody",
+        fallbackExcerpt: "Fallback excerpt",
+        url: "https://x.com/a/status/1",
+        env: {} as NodeJS.ProcessEnv,
+      });
+    } catch (error) {
+      capturedError = error;
+    }
+
+    expect(capturedError).toBeInstanceOf(Error);
+    expect((capturedError as Error).message).toContain("OPENAI_API_KEY");
+  });
+
   test("returns structured summary from OpenAI response", async () => {
     const fakeFetch = async () =>
       new Response(
@@ -105,7 +122,7 @@ describe("generateAiSummaryForBookmark", () => {
 });
 
 describe("writeBookmarkSummary", () => {
-  test("writes three-part items", async () => {
+  test("throws when OPENAI_API_KEY is missing", async () => {
     const out = await mkdtemp(path.join(tmpdir(), "x-bookmarks-"));
     const itemDir = path.join(out, "20260110-100000-a-alice-1");
     await mkdir(itemDir, { recursive: true });
@@ -120,12 +137,20 @@ authorUsername: "alice"
 Body`
     );
 
-    const summaryPath = await writeBookmarkSummary(out, [{ tweetId: "1", markdownPath: path.join(itemDir, "1.md") }]);
-    const text = await readFile(summaryPath!, "utf8");
+    const originalApiKey = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
 
-    expect(text).toContain("一句话摘要：");
-    expect(text).toContain("相关性说明：");
-    expect(text).toContain("来源链接：[原帖](https://x.com/alice/status/1)");
+    try {
+      await expect(
+        writeBookmarkSummary(out, [{ tweetId: "1", markdownPath: path.join(itemDir, "1.md") }])
+      ).rejects.toThrow("OPENAI_API_KEY");
+    } finally {
+      if (originalApiKey === undefined) {
+        delete process.env.OPENAI_API_KEY;
+      } else {
+        process.env.OPENAI_API_KEY = originalApiKey;
+      }
+    }
   });
 
   test("uses ai summary when OPENAI_API_KEY is configured", async () => {

@@ -31,6 +31,11 @@ type AiSummaryResult = {
 };
 
 const FALLBACK_RELEVANCE_REASON = "与技术实践相关，建议按需阅读原文。";
+const OPENAI_API_KEY_MISSING_ERROR = "Missing OPENAI_API_KEY. Set OPENAI_API_KEY to enable --with-summary.";
+
+function isMissingOpenAiApiKeyError(error: unknown): boolean {
+  return error instanceof Error && error.message === OPENAI_API_KEY_MISSING_ERROR;
+}
 
 function buildFallbackSummary(fallbackExcerpt: string): AiSummaryResult {
   return {
@@ -118,7 +123,7 @@ export async function generateAiSummaryForBookmark(input: {
   const env = input.env || process.env;
   const apiKey = env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
-    return fallback;
+    throw new Error(OPENAI_API_KEY_MISSING_ERROR);
   }
 
   const fetchImpl = input.fetchImpl || fetch;
@@ -227,6 +232,9 @@ export async function writeBookmarkSummary(
         relativePath: path.relative(outputDir, source.markdownPath).split(path.sep).join("/"),
       });
     } catch (error) {
+      if (isMissingOpenAiApiKeyError(error)) {
+        throw error;
+      }
       const message = error instanceof Error ? error.message : String(error);
       log?.(`[bookmarks-export] summary skipped: ${source.tweetId} (${message})`);
     }
