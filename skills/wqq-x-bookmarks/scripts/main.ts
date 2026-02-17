@@ -12,6 +12,7 @@ import {
   resolveTweetOutputPath,
   shouldSkipTweetOutput,
 } from "./output";
+import { writeBookmarkSummary } from "./summary";
 import type { BookmarkTweet, ExportArgs, ExportSummary } from "./types";
 
 function parsePositiveInt(input: string, flagName: string): number {
@@ -24,7 +25,9 @@ function parsePositiveInt(input: string, flagName: string): number {
 
 function printUsage(): void {
   console.log("Usage:");
-  console.log("  npx -y bun skills/wqq-x-bookmarks/scripts/main.ts [--limit <n>] [--output <dir>] [--no-download-media]");
+  console.log(
+    "  npx -y bun skills/wqq-x-bookmarks/scripts/main.ts [--limit <n>] [--output <dir>] [--no-download-media] [--with-summary]"
+  );
 }
 
 export function parseExportArgs(argv: string[]): ExportArgs {
@@ -32,6 +35,7 @@ export function parseExportArgs(argv: string[]): ExportArgs {
     limit: 50,
     outputDir: path.resolve(process.cwd(), "wqq-x-bookmarks-output"),
     downloadMedia: true,
+    withSummary: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -57,6 +61,11 @@ export function parseExportArgs(argv: string[]): ExportArgs {
 
     if (arg === "--no-download-media") {
       args.downloadMedia = false;
+      continue;
+    }
+
+    if (arg === "--with-summary") {
+      args.withSummary = true;
       continue;
     }
 
@@ -140,11 +149,14 @@ async function exportSingleTweet(
   cookieMap: Record<string, string>,
   args: ExportArgs,
   log: (message: string) => void
-): Promise<"success" | "skipped" | "failed"> {
+): Promise<{ status: "success" | "skipped" | "failed"; markdownPath: string | null }> {
   const existingPath = findExistingTweetMarkdownPath(args.outputDir, tweetId);
   if (shouldSkipTweetOutput(existingPath ?? "", Boolean(existingPath))) {
     log(`[bookmarks-export] skipped: ${tweetId} (exists: ${existingPath})`);
-    return "skipped";
+    return {
+      status: "skipped",
+      markdownPath: existingPath ?? null,
+    };
   }
 
   try {
@@ -167,11 +179,17 @@ async function exportSingleTweet(
     }
 
     log(`[bookmarks-export] success: ${tweetId} -> ${markdownPath}`);
-    return "success";
+    return {
+      status: "success",
+      markdownPath,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log(`[bookmarks-export] failed: ${tweetId} (${message})`);
-    return "failed";
+    return {
+      status: "failed",
+      markdownPath: null,
+    };
   }
 }
 
@@ -191,11 +209,24 @@ export async function runBookmarksExport(argv: string[]): Promise<ExportSummary>
   log(`[bookmarks-export] collected ${collected.tweetIds.length} tweet ids`);
 
   const summary: ExportSummary = { success: 0, skipped: 0, failed: 0 };
+  const summarySources: Array<{ tweetId: string; markdownPath: string }> = [];
 
   for (const tweetId of collected.tweetIds) {
     const tweetUrl = resolveTweetSeedUrl(tweetId, collected.tweetsById[tweetId]);
     const result = await exportSingleTweet(tweetId, tweetUrl, cookieMap, args, log);
-    summary[result] += 1;
+    summary[result.status] += 1;
+    if (result.markdownPath) {
+      summarySources.push({ tweetId, markdownPath: result.markdownPath });
+    }
+  }
+
+  if (args.withSummary) {
+    const summaryPath = await writeBookmarkSummary(args.outputDir, summarySources, log);
+    if (summaryPath) {
+      log(`[bookmarks-export] summary: ${summaryPath}`);
+    } else {
+      log("[bookmarks-export] summary: skipped (no readable markdown files)");
+    }
   }
 
   log(
