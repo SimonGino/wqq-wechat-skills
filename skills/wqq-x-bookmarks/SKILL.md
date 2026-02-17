@@ -34,7 +34,7 @@ npx -y bun skills/wqq-x-bookmarks/scripts/debug.ts --count 5 --save-raw
 - 默认下载媒体（不传 `--no-download-media`）
 - 单条失败不中断整体
 - 已存在 `<tweetId>.md` 自动 skip
-- 可选 `--with-summary` 同步生成汇总文档
+- 可选 `--with-summary` 同步生成汇总文档（AI 三段式）
 
 ```bash
 npx -y bun skills/wqq-x-bookmarks/scripts/main.ts
@@ -48,6 +48,13 @@ npx -y bun skills/wqq-x-bookmarks/scripts/main.ts --output /tmp/wqq-x-bookmarks-
 npx -y bun skills/wqq-x-bookmarks/scripts/main.ts --no-download-media
 npx -y bun skills/wqq-x-bookmarks/scripts/main.ts --limit 10 --with-summary
 ```
+
+`--with-summary` 说明：
+- 必须提供 `OPENAI_API_KEY`
+- 可选 `OPENAI_BASE_URL`（默认 `https://api.openai.com/v1`）
+- 可选 `OPENAI_MODEL`（默认 `gpt-4o-mini`）
+- 若 OpenAI 请求失败或返回格式异常，会自动回退到规则摘要，不中断导出
+- 若缺少 `OPENAI_API_KEY`，会直接报错并中止 summary 生成
 
 ## Output
 
