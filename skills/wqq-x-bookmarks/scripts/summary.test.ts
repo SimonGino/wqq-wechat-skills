@@ -87,7 +87,7 @@ describe("generateAiSummaryForBookmark", () => {
       markdown: "# Title\n\nBody",
       fallbackExcerpt: "Fallback excerpt",
       url: "https://x.com/a/status/1",
-      fetchImpl: fakeFetch as typeof fetch,
+      fetchImpl: fakeFetch as unknown as typeof fetch,
       env: {
         OPENAI_API_KEY: "test-key",
         OPENAI_BASE_URL: "https://api.openai.com/v1",
@@ -108,7 +108,7 @@ describe("generateAiSummaryForBookmark", () => {
       markdown: "# Title\n\nBody",
       fallbackExcerpt: "Fallback excerpt",
       url: "https://x.com/a/status/1",
-      fetchImpl: fakeFetch as typeof fetch,
+      fetchImpl: fakeFetch as unknown as typeof fetch,
       env: {
         OPENAI_API_KEY: "test-key",
         OPENAI_BASE_URL: "https://api.openai.com/v1",
@@ -172,7 +172,7 @@ Body`
     const originalApiKey = process.env.OPENAI_API_KEY;
     const originalBaseUrl = process.env.OPENAI_BASE_URL;
 
-    globalThis.fetch = (async () =>
+    globalThis.fetch = ((async () =>
       new Response(
         JSON.stringify({
           choices: [
@@ -184,7 +184,7 @@ Body`
           ],
         }),
         { status: 200, headers: { "content-type": "application/json" } }
-      )) as typeof fetch;
+      )) as unknown) as typeof fetch;
     process.env.OPENAI_API_KEY = "test-key";
     process.env.OPENAI_BASE_URL = "https://api.openai.com/v1";
 
