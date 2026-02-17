@@ -11,9 +11,52 @@ export type BookmarkSummaryEntry = {
   title: string;
   authorUsername: string;
   url: string;
-  excerpt: string;
+  oneLineSummary: string;
+  relevanceReason: string;
   relativePath: string;
 };
+
+export type ParsedBookmarkSummary = {
+  tweetId: string;
+  title: string;
+  authorUsername: string;
+  url: string;
+  excerpt: string;
+};
+
+type AiSummaryResult = {
+  oneLineSummary: string;
+  relevanceReason: string;
+  usedFallback: boolean;
+};
+
+const FALLBACK_RELEVANCE_REASON = "与技术实践相关，建议按需阅读原文。";
+const OPENAI_API_KEY_MISSING_ERROR = "Missing OPENAI_API_KEY. Set OPENAI_API_KEY to enable --with-summary.";
+
+function isMissingOpenAiApiKeyError(error: unknown): boolean {
+  return error instanceof Error && error.message === OPENAI_API_KEY_MISSING_ERROR;
+}
+
+function buildFallbackSummary(fallbackExcerpt: string): AiSummaryResult {
+  return {
+    oneLineSummary: fallbackExcerpt || "(empty)",
+    relevanceReason: FALLBACK_RELEVANCE_REASON,
+    usedFallback: true,
+  };
+}
+
+function parseAiSummaryContent(content: string): Omit<AiSummaryResult, "usedFallback"> | null {
+  const oneLineSummary = content.match(/(?:^|\n)一句话摘要[:：]\s*(.+)/)?.[1]?.trim() || "";
+  const relevanceReason = content.match(/(?:^|\n)相关性说明[:：]\s*(.+)/)?.[1]?.trim() || "";
+  if (!oneLineSummary || !relevanceReason) {
+    return null;
+  }
+
+  return {
+    oneLineSummary,
+    relevanceReason,
+  };
+}
 
 function extractFrontMatter(markdown: string): string {
   return markdown.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? "";
@@ -56,7 +99,7 @@ function extractExcerpt(body: string): string {
   return "";
 }
 
-export function parseBookmarkMarkdown(tweetId: string, markdown: string): Omit<BookmarkSummaryEntry, "relativePath"> {
+export function parseBookmarkMarkdown(tweetId: string, markdown: string): ParsedBookmarkSummary {
   const frontMatter = extractFrontMatter(markdown);
   const body = extractBody(markdown);
   return {
@@ -66,6 +109,72 @@ export function parseBookmarkMarkdown(tweetId: string, markdown: string): Omit<B
     url: extractFrontMatterField(frontMatter, "url") || `https://x.com/i/web/status/${tweetId}`,
     excerpt: extractExcerpt(body),
   };
+}
+
+export async function generateAiSummaryForBookmark(input: {
+  markdown: string;
+  fallbackExcerpt: string;
+  url: string;
+  fetchImpl?: typeof fetch;
+  env?: NodeJS.ProcessEnv;
+  log?: (message: string) => void;
+}): Promise<AiSummaryResult> {
+  const fallback = buildFallbackSummary(input.fallbackExcerpt);
+  const env = input.env || process.env;
+  const apiKey = env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error(OPENAI_API_KEY_MISSING_ERROR);
+  }
+
+  const fetchImpl = input.fetchImpl || fetch;
+  const baseUrl = (env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
+
+  try {
+    const response = await fetchImpl(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: env.OPENAI_MODEL || "gpt-4o-mini",
+        temperature: 0.2,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You summarize X bookmarks for Chinese readers. Reply in exactly two lines with labels: 一句话摘要：... and 相关性说明：...",
+          },
+          {
+            role: "user",
+            content: `请总结下面内容并只输出两行：\n一句话摘要：...\n相关性说明：...\n\n${input.markdown}`,
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenAI request failed: ${response.status}`);
+    }
+
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = data.choices?.[0]?.message?.content || "";
+    const parsed = parseAiSummaryContent(content);
+    if (!parsed) {
+      throw new Error("OpenAI response format is invalid");
+    }
+
+    return {
+      ...parsed,
+      usedFallback: false,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    input.log?.(`[bookmarks-export] ai summary fallback: ${input.url} (${message})`);
+    return fallback;
+  }
 }
 
 export function renderBookmarkSummaryMarkdown(entries: BookmarkSummaryEntry[]): string {
@@ -84,8 +193,9 @@ export function renderBookmarkSummaryMarkdown(entries: BookmarkSummaryEntry[]): 
     if (!entry) continue;
     lines.push(`${i + 1}. [${entry.title}](${entry.relativePath})`);
     lines.push(`TweetId: \`${entry.tweetId}\` | Author: @${entry.authorUsername}`);
-    lines.push(`URL: ${entry.url}`);
-    lines.push(`Summary: ${entry.excerpt || "(empty)"}`);
+    lines.push(`一句话摘要：${entry.oneLineSummary || "(empty)"}`);
+    lines.push(`相关性说明：${entry.relevanceReason || "(empty)"}`);
+    lines.push(`来源链接：[原帖](${entry.url})`);
     lines.push("");
   }
 
@@ -106,11 +216,25 @@ export async function writeBookmarkSummary(
     try {
       const markdown = await readFile(source.markdownPath, "utf8");
       const parsed = parseBookmarkMarkdown(source.tweetId, markdown);
+      const ai = await generateAiSummaryForBookmark({
+        markdown,
+        fallbackExcerpt: parsed.excerpt,
+        url: parsed.url,
+        log,
+      });
       entries.push({
-        ...parsed,
+        tweetId: parsed.tweetId,
+        title: parsed.title,
+        authorUsername: parsed.authorUsername,
+        url: parsed.url,
+        oneLineSummary: ai.oneLineSummary,
+        relevanceReason: ai.relevanceReason,
         relativePath: path.relative(outputDir, source.markdownPath).split(path.sep).join("/"),
       });
     } catch (error) {
+      if (isMissingOpenAiApiKeyError(error)) {
+        throw error;
+      }
       const message = error instanceof Error ? error.message : String(error);
       log?.(`[bookmarks-export] summary skipped: ${source.tweetId} (${message})`);
     }

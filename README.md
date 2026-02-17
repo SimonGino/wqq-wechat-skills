@@ -3,7 +3,7 @@
 这是一个面向微信公众号教程写作的个人技能仓库，包含：
 - `wqq-wechat-article`：把素材整理成教程型公众号文章
 - `wqq-image-gen`：生成封面图与信息图（OpenAI / Google）
-- `wqq-x-bookmarks`：导出 X 书签为 Markdown（支持 debug 与 skip）
+- `wqq-x-bookmarks`：导出 X 书签为 Markdown（支持 debug、skip、`--with-summary` AI 汇总）
 
 ## MVP 能力
 
@@ -44,7 +44,14 @@ npx -y bun skills/wqq-x-bookmarks/scripts/debug.ts --count 5 --save-raw
 
 # 再导出（默认 50 条，默认下载媒体）
 npx -y bun skills/wqq-x-bookmarks/scripts/main.ts --limit 10 --output /tmp/wqq-x-bookmarks-demo
+
+# 导出并生成 AI 汇总（需要 OPENAI_API_KEY）
+npx -y bun skills/wqq-x-bookmarks/scripts/main.ts --limit 10 --with-summary --output /tmp/wqq-x-bookmarks-demo
 ```
+
+`--with-summary` 说明：
+- 缺少 `OPENAI_API_KEY` 会直接报错
+- OpenAI 请求失败时自动回退到规则摘要，不影响其他条目导出
 
 ## 推荐工作流（MVP）
 
