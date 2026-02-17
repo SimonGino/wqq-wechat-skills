@@ -2,6 +2,7 @@ export type ExportArgs = {
   limit: number;
   outputDir: string;
   downloadMedia: boolean;
+  withSummary: boolean;
 };
 
 export type DebugArgs = {
