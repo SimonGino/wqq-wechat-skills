@@ -1,5 +1,13 @@
+import { mkdtemp, mkdir, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, test } from "bun:test";
-import { generateAiSummaryForBookmark, parseBookmarkMarkdown, renderBookmarkSummaryMarkdown } from "./summary";
+import {
+  generateAiSummaryForBookmark,
+  parseBookmarkMarkdown,
+  renderBookmarkSummaryMarkdown,
+  writeBookmarkSummary,
+} from "./summary";
 
 describe("parseBookmarkMarkdown", () => {
   test("extracts summary fields from bookmark markdown", () => {
@@ -93,5 +101,87 @@ describe("generateAiSummaryForBookmark", () => {
     expect(result.oneLineSummary).toBe("Fallback excerpt");
     expect(result.relevanceReason).toContain("技术实践相关");
     expect(result.usedFallback).toBe(true);
+  });
+});
+
+describe("writeBookmarkSummary", () => {
+  test("writes three-part items", async () => {
+    const out = await mkdtemp(path.join(tmpdir(), "x-bookmarks-"));
+    const itemDir = path.join(out, "20260110-100000-a-alice-1");
+    await mkdir(itemDir, { recursive: true });
+    await Bun.write(
+      path.join(itemDir, "1.md"),
+      `---
+url: "https://x.com/alice/status/1"
+authorUsername: "alice"
+---
+
+# Title
+Body`
+    );
+
+    const summaryPath = await writeBookmarkSummary(out, [{ tweetId: "1", markdownPath: path.join(itemDir, "1.md") }]);
+    const text = await readFile(summaryPath!, "utf8");
+
+    expect(text).toContain("一句话摘要：");
+    expect(text).toContain("相关性说明：");
+    expect(text).toContain("来源链接：[原帖](https://x.com/alice/status/1)");
+  });
+
+  test("uses ai summary when OPENAI_API_KEY is configured", async () => {
+    const out = await mkdtemp(path.join(tmpdir(), "x-bookmarks-"));
+    const itemDir = path.join(out, "20260110-100000-a-alice-1");
+    await mkdir(itemDir, { recursive: true });
+    await Bun.write(
+      path.join(itemDir, "1.md"),
+      `---
+url: "https://x.com/alice/status/1"
+authorUsername: "alice"
+---
+
+# Title
+Body`
+    );
+
+    const originalFetch = globalThis.fetch;
+    const originalApiKey = process.env.OPENAI_API_KEY;
+    const originalBaseUrl = process.env.OPENAI_BASE_URL;
+
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: "一句话摘要：AI 摘要\n相关性说明：AI 相关性",
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )) as typeof fetch;
+    process.env.OPENAI_API_KEY = "test-key";
+    process.env.OPENAI_BASE_URL = "https://api.openai.com/v1";
+
+    try {
+      const summaryPath = await writeBookmarkSummary(out, [{ tweetId: "1", markdownPath: path.join(itemDir, "1.md") }]);
+      const text = await readFile(summaryPath!, "utf8");
+
+      expect(text).toContain("一句话摘要：AI 摘要");
+      expect(text).toContain("相关性说明：AI 相关性");
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalApiKey === undefined) {
+        delete process.env.OPENAI_API_KEY;
+      } else {
+        process.env.OPENAI_API_KEY = originalApiKey;
+      }
+
+      if (originalBaseUrl === undefined) {
+        delete process.env.OPENAI_BASE_URL;
+      } else {
+        process.env.OPENAI_BASE_URL = originalBaseUrl;
+      }
+    }
   });
 });

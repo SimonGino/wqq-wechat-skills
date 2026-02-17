@@ -211,13 +211,19 @@ export async function writeBookmarkSummary(
     try {
       const markdown = await readFile(source.markdownPath, "utf8");
       const parsed = parseBookmarkMarkdown(source.tweetId, markdown);
+      const ai = await generateAiSummaryForBookmark({
+        markdown,
+        fallbackExcerpt: parsed.excerpt,
+        url: parsed.url,
+        log,
+      });
       entries.push({
         tweetId: parsed.tweetId,
         title: parsed.title,
         authorUsername: parsed.authorUsername,
         url: parsed.url,
-        oneLineSummary: parsed.excerpt,
-        relevanceReason: FALLBACK_RELEVANCE_REASON,
+        oneLineSummary: ai.oneLineSummary,
+        relevanceReason: ai.relevanceReason,
         relativePath: path.relative(outputDir, source.markdownPath).split(path.sep).join("/"),
       });
     } catch (error) {
