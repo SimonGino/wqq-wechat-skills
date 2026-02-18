@@ -1,11 +1,20 @@
-import { X_REQUIRED_COOKIES } from "./constants";
-import type { XCookieMap } from "./types";
+import { X_COOKIE_NAMES, X_REQUIRED_COOKIES } from "./constants";
+import { readCookieFile, writeCookieFile } from "./cookie-store";
+import { loadXCookiesFromBrowserLogin } from "./chrome-login";
+import { resolveXRuntimeCookiePath } from "./paths";
+import type { PersistedCookieMap, XCookieMap } from "./types";
 
-type LoadXCookiesOptions = {
+export type LoadXCookiesOptions = {
   loadFromBrowser?: () => Promise<XCookieMap>;
+  readFromFile?: (filePath: string) => Promise<PersistedCookieMap | null>;
+  cookiePath?: string;
 };
 
-const decoder = new TextDecoder();
+export type RefreshXCookiesOptions = {
+  refreshFromBrowser?: () => Promise<XCookieMap>;
+  writeToFile?: (filePath: string, cookieMap: PersistedCookieMap, source?: string) => Promise<void>;
+  cookiePath?: string;
+};
 
 function parseCookieHeader(header: string | undefined): XCookieMap {
   const cookieMap: XCookieMap = {};
@@ -27,83 +36,32 @@ function parseCookieHeader(header: string | undefined): XCookieMap {
   return cookieMap;
 }
 
-export function hasRequiredXCookies(cookieMap: XCookieMap): boolean {
-  return X_REQUIRED_COOKIES.every((key) => Boolean(cookieMap[key]));
-}
-
-export function buildCookieHeader(cookieMap: XCookieMap): string {
-  return Object.entries(cookieMap)
-    .filter(([, value]) => Boolean(value))
-    .map(([key, value]) => `${key}=${value}`)
-    .join("; ");
-}
-
 function normalizeCookieMap(raw: unknown): XCookieMap {
   const cookieMap: XCookieMap = {};
   if (!raw || typeof raw !== "object") {
     return cookieMap;
   }
 
-  for (const key of ["auth_token", "ct0", "gt", "twid"]) {
-    const value = (raw as Record<string, unknown>)[key];
+  for (const name of X_COOKIE_NAMES) {
+    const value = (raw as Record<string, unknown>)[name];
     if (typeof value === "string" && value.trim()) {
-      cookieMap[key] = value.trim();
+      cookieMap[name] = value.trim();
     }
   }
-
   return cookieMap;
 }
 
-async function loadXCookiesFromBrowser(log?: (message: string) => void): Promise<XCookieMap> {
-  const pythonScript = `
-import json
-values = {}
-try:
-    import browser_cookie3
-except Exception:
-    print("{}")
-    raise SystemExit(0)
-
-for domain in ("x.com", ".x.com", "twitter.com", ".twitter.com"):
-    try:
-        for cookie in browser_cookie3.chrome(domain_name=domain):
-            if cookie.name in ("auth_token", "ct0") and cookie.value:
-                values[cookie.name] = cookie.value
-    except Exception:
-        pass
-
-print(json.dumps(values))
-`;
-
-  try {
-    const result = Bun.spawnSync(["python3", "-c", pythonScript], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-
-    if (result.exitCode !== 0) {
-      const stderr = decoder.decode(result.stderr).trim();
-      log?.(`[x-cookies] browser fallback failed: ${stderr || `exit code ${result.exitCode}`}`);
-      return {};
+function toPersistedCookieMap(cookieMap: XCookieMap): PersistedCookieMap {
+  const out: PersistedCookieMap = {};
+  for (const [key, value] of Object.entries(cookieMap)) {
+    if (typeof value === "string" && value.trim()) {
+      out[key] = value.trim();
     }
-
-    const stdout = decoder.decode(result.stdout).trim();
-    if (!stdout) {
-      return {};
-    }
-
-    return normalizeCookieMap(JSON.parse(stdout));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    log?.(`[x-cookies] browser fallback unavailable: ${message}`);
-    return {};
   }
+  return out;
 }
 
-export async function loadXCookies(
-  log?: (message: string) => void,
-  options: LoadXCookiesOptions = {}
-): Promise<XCookieMap> {
+function buildEnvCookieMap(): XCookieMap {
   const cookieHeader = process.env.X_COOKIE_HEADER?.trim() || process.env.X_COOKIES?.trim();
   const cookieMap = parseCookieHeader(cookieHeader);
 
@@ -116,18 +74,73 @@ export async function loadXCookies(
     cookieMap.ct0 = ct0;
   }
 
-  const envCookieMap = { ...cookieMap };
-  const hasEnvAuth = hasRequiredXCookies(cookieMap);
-  if (!hasEnvAuth) {
-    const loadFromBrowser = options.loadFromBrowser ?? (() => loadXCookiesFromBrowser(log));
-    const browserCookieMap = await loadFromBrowser();
-    Object.assign(cookieMap, browserCookieMap, envCookieMap);
-  }
+  return cookieMap;
+}
 
+function logLoadedCookieKeys(log: ((message: string) => void) | undefined, cookieMap: XCookieMap): void {
   log?.(
     `[x-cookies] loaded keys: ${Object.keys(cookieMap)
       .sort()
       .join(", ") || "none"}`
   );
-  return cookieMap;
+}
+
+export function hasRequiredXCookies(cookieMap: XCookieMap): boolean {
+  return X_REQUIRED_COOKIES.every((key) => Boolean(cookieMap[key]));
+}
+
+export function buildCookieHeader(cookieMap: XCookieMap): string {
+  return Object.entries(cookieMap)
+    .filter(([, value]) => Boolean(value))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("; ");
+}
+
+export async function loadXCookies(
+  log?: (message: string) => void,
+  options: LoadXCookiesOptions = {}
+): Promise<XCookieMap> {
+  const envCookieMap = buildEnvCookieMap();
+  if (hasRequiredXCookies(envCookieMap)) {
+    logLoadedCookieKeys(log, envCookieMap);
+    return envCookieMap;
+  }
+
+  const cookiePath = options.cookiePath ?? resolveXRuntimeCookiePath();
+  const readFromFile = options.readFromFile ?? readCookieFile;
+  const fileCookieMap = normalizeCookieMap(await readFromFile(cookiePath));
+  const fileAndEnvCookieMap = { ...fileCookieMap, ...envCookieMap };
+  if (hasRequiredXCookies(fileAndEnvCookieMap)) {
+    logLoadedCookieKeys(log, fileAndEnvCookieMap);
+    return fileAndEnvCookieMap;
+  }
+
+  const loadFromBrowser = options.loadFromBrowser ?? (() => loadXCookiesFromBrowserLogin(log));
+  const browserCookieMap = normalizeCookieMap(await loadFromBrowser());
+  const combined = { ...fileCookieMap, ...browserCookieMap, ...envCookieMap };
+  logLoadedCookieKeys(log, combined);
+  return combined;
+}
+
+export async function refreshXCookies(
+  log?: (message: string) => void,
+  options: RefreshXCookiesOptions = {}
+): Promise<XCookieMap> {
+  const refreshFromBrowser = options.refreshFromBrowser ?? (() => loadXCookiesFromBrowserLogin(log));
+  const cookiePath = options.cookiePath ?? resolveXRuntimeCookiePath();
+  const writeToFile = options.writeToFile ?? writeCookieFile;
+  const refreshedCookieMap = normalizeCookieMap(await refreshFromBrowser());
+
+  const persistedCookieMap = toPersistedCookieMap(refreshedCookieMap);
+  if (Object.keys(persistedCookieMap).length > 0) {
+    try {
+      await writeToFile(cookiePath, persistedCookieMap, "browser-refresh");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log?.(`[x-cookies] failed to persist cookie file: ${message}`);
+    }
+  }
+
+  logLoadedCookieKeys(log, refreshedCookieMap);
+  return refreshedCookieMap;
 }
