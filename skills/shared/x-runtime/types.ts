@@ -6,6 +6,21 @@ export type XCookieMap = {
   twid?: string;
 };
 
+export type PersistedCookieMap = Record<string, string>;
+
+export type CookieFileData =
+  | {
+      cookies: PersistedCookieMap;
+      updated_at?: number;
+      source?: string;
+    }
+  | {
+      version: 1;
+      updatedAt: string;
+      cookieMap: PersistedCookieMap;
+      source?: string;
+    };
+
 export type CookieLike = {
   name?: string;
   value?: string;
