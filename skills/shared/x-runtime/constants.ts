@@ -1,7 +1,12 @@
+import { resolveXRuntimeChromeProfileDir, resolveXRuntimeCookiePath } from "./paths";
+
 export const DEFAULT_BEARER_TOKEN =
   "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA";
 export const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+export const X_LOGIN_URL = "https://x.com/home";
+export const X_USER_DATA_DIR = resolveXRuntimeChromeProfileDir();
+export const X_COOKIE_PATH = resolveXRuntimeCookiePath();
 
 export const X_COOKIE_NAMES = ["auth_token", "ct0", "gt", "twid"] as const;
 export const X_REQUIRED_COOKIES = ["auth_token", "ct0"] as const;
