@@ -29,6 +29,16 @@ function normalizeCaption(caption?: string): string {
   return trimmed.replace(/\s+/g, " ");
 }
 
+function parseArticleMediaIdFromUrl(rawUrl: string): string | null {
+  try {
+    const parsed = new URL(rawUrl);
+    const match = parsed.pathname.match(/\/article\/\d+\/media\/(\d+)/);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function resolveMediaUrl(info?: ArticleMediaInfo): string | undefined {
   if (!info) return undefined;
   if (info.original_img_url) return info.original_img_url;
@@ -109,9 +119,14 @@ function resolveEntityMediaLines(
   }
 
   const fallbackUrl = typeof value.data?.url === "string" ? value.data.url : undefined;
-  if (fallbackUrl && !usedUrls.has(fallbackUrl)) {
-    usedUrls.add(fallbackUrl);
-    lines.push(`![${altText}](${fallbackUrl})`);
+  if (fallbackUrl) {
+    const fallbackMediaId = parseArticleMediaIdFromUrl(fallbackUrl);
+    const resolvedFallbackUrl = fallbackMediaId ? mediaById.get(fallbackMediaId) : undefined;
+    const finalUrl = resolvedFallbackUrl ?? fallbackUrl;
+    if (!usedUrls.has(finalUrl)) {
+      usedUrls.add(finalUrl);
+      lines.push(`![${altText}](${finalUrl})`);
+    }
   }
 
   return lines;
@@ -268,33 +283,39 @@ export function formatArticleMarkdown(article: unknown): FormatArticleResult {
     return { markdown: `\`\`\`json\n${JSON.stringify(article, null, 2)}\n\`\`\``, coverUrl: null };
   }
 
-  const lines: string[] = [];
   const usedUrls = new Set<string>();
   const mediaById = buildMediaById(candidate);
   const title = typeof candidate.title === "string" ? candidate.title.trim() : "";
-  if (title) {
-    lines.push(`# ${title}`);
-  }
-
   const coverUrl = resolveMediaUrl(candidate.cover_media?.media_info) ?? null;
-  if (coverUrl) {
-    usedUrls.add(coverUrl);
-  }
 
+  const contentLines: string[] = [];
   const blocks = candidate.content_state?.blocks;
   const entityMap = candidate.content_state?.entityMap;
   if (Array.isArray(blocks) && blocks.length > 0) {
     const rendered = renderContentBlocks(blocks, entityMap, mediaById, usedUrls);
     if (rendered.length > 0) {
-      if (lines.length > 0) lines.push("");
-      lines.push(...rendered);
+      contentLines.push(...rendered);
     }
   } else if (typeof candidate.plain_text === "string") {
-    if (lines.length > 0) lines.push("");
-    lines.push(candidate.plain_text.trim());
+    contentLines.push(candidate.plain_text.trim());
   } else if (typeof candidate.preview_text === "string") {
+    contentLines.push(candidate.preview_text.trim());
+  }
+
+  const lines: string[] = [];
+  if (title) {
+    lines.push(`# ${title}`);
+  }
+
+  if (coverUrl && !usedUrls.has(coverUrl)) {
     if (lines.length > 0) lines.push("");
-    lines.push(candidate.preview_text.trim());
+    lines.push(`![](${coverUrl})`);
+    usedUrls.add(coverUrl);
+  }
+
+  if (contentLines.length > 0) {
+    if (lines.length > 0) lines.push("");
+    lines.push(...contentLines);
   }
 
   const mediaUrls = collectMediaUrls(candidate, usedUrls, coverUrl ?? undefined);
