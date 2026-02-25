@@ -78,5 +78,15 @@ else
   exit 1
 fi
 
+# Test 9: wqq-x-urls-zh-md help
+echo -n "Testing wqq-x-urls-zh-md --help... "
+output=$(bun skills/wqq-x-urls-zh-md/scripts/main.ts --help 2>&1)
+if echo "$output" | grep -q "Usage:"; then
+  echo -e "${GREEN}✓${NC}"
+else
+  echo -e "${RED}✗${NC}"
+  exit 1
+fi
+
 echo ""
 echo -e "${GREEN}All smoke tests passed!${NC}"
