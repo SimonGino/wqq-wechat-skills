@@ -13,22 +13,6 @@ Official API-based image generation. Supports OpenAI and Google providers.
 1. `SKILL_DIR` = this SKILL.md file's directory
 2. Script path = `${SKILL_DIR}/scripts/main.ts`
 
-## Preferences (EXTEND.md)
-
-Use Bash to check EXTEND.md existence (priority order):
-
-```bash
-test -f .wqq-skills/wqq-image-gen/EXTEND.md && echo "project"
-test -f "$HOME/.wqq-skills/wqq-image-gen/EXTEND.md" && echo "user"
-```
-
-┌──────────────────────────────────────────────────┬───────────────────┐
-│ Path                                             │ Location          │
-├──────────────────────────────────────────────────┼───────────────────┤
-│ .wqq-skills/wqq-image-gen/EXTEND.md              │ Project directory │
-│ $HOME/.wqq-skills/wqq-image-gen/EXTEND.md        │ User home         │
-└──────────────────────────────────────────────────┴───────────────────┘
-
 ## Usage
 
 ```bash
@@ -85,13 +69,7 @@ When generating one WeChat cover image to be cropped in both `1:1` and `2.35:1`:
 | `OPENAI_BASE_URL` | OpenAI endpoint (required) |
 | `GOOGLE_BASE_URL` | Google endpoint (required) |
 
-Strict env policy:
-- Only loads env file from `$HOME/.wqq-skills/.env`
-- Never loads `<cwd>/.wqq-skills/.env`
+Env file policy:
+- Loads config from `$HOME/.wqq-skills/.env`
+- File-only keys (process.env ignored): `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `GEMINI_API_KEY`, `GOOGLE_BASE_URL`, `GOOGLE_IMAGE_MODEL`
 - Missing `OPENAI_BASE_URL` or `GOOGLE_BASE_URL` fails fast with explicit error
-
-Env file merge order: process.env first, then missing keys are filled from `$HOME/.wqq-skills/.env`.
-
-## Extension Support
-
-Custom configurations via EXTEND.md. See Preferences section.

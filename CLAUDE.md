@@ -37,7 +37,7 @@ npx -y bun skills/wqq-image-gen/scripts/main.ts \
 - Put API keys in `$HOME/.wqq-skills/.env`.
 - Optional: set `WQQ_PAST_ARTICLES_DIR` in `$HOME/.wqq-skills/.env` for private past-articles path.
 - Do not commit secrets; `.wqq-skills/` is gitignored.
-- Priority: process.env > `$HOME/.wqq-skills/.env`
+- File-only keys (read only from `$HOME/.wqq-skills/.env`): `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `GEMINI_API_KEY`, `GOOGLE_BASE_URL`, `GOOGLE_IMAGE_MODEL`.
 
 ## Development
 

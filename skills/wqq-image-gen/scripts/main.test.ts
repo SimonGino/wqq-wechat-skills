@@ -42,7 +42,10 @@ describe("wqq-image-gen env loading", () => {
   it("loads API key from $HOME/.wqq-skills/.env", async () => {
     const workspace = await mkdtemp(path.join(tmpdir(), "image-gen-cwd-"));
     const fakeHome = await mkdtemp(path.join(tmpdir(), "image-gen-home-"));
-    await writeEnvFile(fakeHome, "OPENAI_API_KEY=home-key\n");
+    await writeEnvFile(
+      fakeHome,
+      "OPENAI_API_KEY=home-key\nOPENAI_BASE_URL=http://127.0.0.1:9/v1\n",
+    );
 
     const result = await runImageCli(
       [
@@ -57,7 +60,7 @@ describe("wqq-image-gen env loading", () => {
       {
         HOME: fakeHome,
         OPENAI_API_KEY: "",
-        OPENAI_BASE_URL: "http://127.0.0.1:9/v1",
+        OPENAI_BASE_URL: "",
       },
     );
 
@@ -65,34 +68,8 @@ describe("wqq-image-gen env loading", () => {
     expect(`${result.stdout}\n${result.stderr}`).not.toContain(
       "OPENAI_API_KEY is required",
     );
-  });
-
-  it("ignores <cwd>/.wqq-skills/.env to avoid project-local secrets", async () => {
-    const workspace = await mkdtemp(path.join(tmpdir(), "image-gen-cwd-"));
-    const fakeHome = await mkdtemp(path.join(tmpdir(), "image-gen-home-"));
-
-    await writeEnvFile(workspace, "OPENAI_API_KEY=cwd-key\n");
-
-    const result = await runImageCli(
-      [
-        "--prompt",
-        "test prompt",
-        "--image",
-        "out.png",
-        "--provider",
-        "openai",
-      ],
-      workspace,
-      {
-        HOME: fakeHome,
-        OPENAI_API_KEY: "",
-        OPENAI_BASE_URL: "http://127.0.0.1:9/v1",
-      },
-    );
-
-    expect(result.code).toBe(1);
-    expect(`${result.stdout}\n${result.stderr}`).toContain(
-      "OPENAI_API_KEY is required",
+    expect(`${result.stdout}\n${result.stderr}`).not.toContain(
+      "OPENAI_BASE_URL is required",
     );
   });
 
@@ -114,7 +91,7 @@ describe("wqq-image-gen env loading", () => {
       {
         HOME: fakeHome,
         OPENAI_API_KEY: "",
-        OPENAI_BASE_URL: "",
+        OPENAI_BASE_URL: "http://127.0.0.1:9/v1",
       },
     );
 
@@ -142,7 +119,7 @@ describe("wqq-image-gen env loading", () => {
       {
         HOME: fakeHome,
         GOOGLE_API_KEY: "",
-        GOOGLE_BASE_URL: "",
+        GOOGLE_BASE_URL: "https://generativelanguage.googleapis.com/v1beta",
       },
     );
 

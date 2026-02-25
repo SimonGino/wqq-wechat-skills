@@ -50,8 +50,9 @@ npx -y bun skills/wqq-x-bookmarks/scripts/main.ts --limit 10 --with-summary
 ```
 
 `--with-summary` 说明：
-- 必须提供 `OPENAI_API_KEY`
-- 可选 `OPENAI_BASE_URL`（默认 `https://api.openai.com/v1`）
+- OpenAI 配置从 `~/.wqq-skills/.env` 读取：
+  - `OPENAI_API_KEY`（必填）
+  - `OPENAI_BASE_URL`（可选，默认 `https://api.openai.com/v1`）
 - 可选 `OPENAI_MODEL`（默认 `gpt-4o-mini`）
 - 若 OpenAI 请求失败或返回格式异常，会自动回退到规则摘要，不中断导出
 - 若缺少 `OPENAI_API_KEY`，会直接报错并中止 summary 生成

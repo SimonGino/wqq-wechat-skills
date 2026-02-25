@@ -167,7 +167,11 @@ WQQ_PAST_ARTICLES_DIR=/absolute/path/to/your/past-articles
 EOF
 ```
 
-- `wqq-image-gen` 仅从 `~/.wqq-skills/.env` 读取配置，且 `OPENAI_BASE_URL/GOOGLE_BASE_URL` 必填。
+- `wqq-image-gen` 会读取 `~/.wqq-skills/.env`：
+  - file-only：`OPENAI_API_KEY` / `OPENAI_BASE_URL` / `GEMINI_API_KEY` / `GOOGLE_BASE_URL` / `GOOGLE_IMAGE_MODEL`
+  - 且 `OPENAI_BASE_URL/GOOGLE_BASE_URL` 必填。
+- `wqq-x-bookmarks` 的 `--with-summary` 会从 `~/.wqq-skills/.env` 读取 `OPENAI_API_KEY/OPENAI_BASE_URL`。
+- `wqq-x-urls-zh-md` 的英译中会从 `~/.wqq-skills/.env` 读取 `OPENAI_API_KEY/OPENAI_BASE_URL`。
 - `wqq-wechat-article` 会读取 `WQQ_PAST_ARTICLES_DIR`：
   - 配置且目录存在：读取该目录下的历史文章作为风格参考
   - 未配置：跳过历史文章步骤（不会再去猜测其他目录）

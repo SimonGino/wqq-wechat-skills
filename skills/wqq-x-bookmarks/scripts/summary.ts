@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { buildEnvWithFileOnlyKeysFromWqqSkillsEnv } from "../../shared/wqq-skills-env";
 
 export type BookmarkSummarySource = {
   tweetId: string;
@@ -31,9 +32,11 @@ type AiSummaryResult = {
 };
 
 const FALLBACK_RELEVANCE_REASON = "与技术实践相关，建议按需阅读原文。";
-const OPENAI_API_KEY_MISSING_ERROR = "Missing OPENAI_API_KEY. Set OPENAI_API_KEY to enable --with-summary.";
+const OPENAI_API_KEY_MISSING_ERROR = "Missing OPENAI_API_KEY. Set it in ~/.wqq-skills/.env to enable --with-summary.";
 const AI_SYSTEM_PROMPT =
   "You summarize X bookmarks for Chinese readers. Reply in exactly two lines with labels: 一句话摘要：... and 相关性说明：...";
+
+const FILE_ONLY_ENV_KEYS = ["OPENAI_API_KEY", "OPENAI_BASE_URL"] as const;
 
 function isMissingOpenAiApiKeyError(error: unknown): boolean {
   return error instanceof Error && error.message === OPENAI_API_KEY_MISSING_ERROR;
@@ -315,7 +318,13 @@ export async function generateAiSummaryForBookmark(input: {
   log?: (message: string) => void;
 }): Promise<AiSummaryResult> {
   const fallback = buildFallbackSummary(input.fallbackExcerpt);
-  const env = input.env || process.env;
+  const env =
+    input.env ||
+    (await buildEnvWithFileOnlyKeysFromWqqSkillsEnv(
+      FILE_ONLY_ENV_KEYS,
+      process.env,
+      process.env.HOME,
+    ));
   const apiKey = env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
     throw new Error(OPENAI_API_KEY_MISSING_ERROR);
@@ -405,6 +414,12 @@ export async function writeBookmarkSummary(
     return null;
   }
 
+  const env = await buildEnvWithFileOnlyKeysFromWqqSkillsEnv(
+    FILE_ONLY_ENV_KEYS,
+    process.env,
+    process.env.HOME,
+  );
+
   const entries: BookmarkSummaryEntry[] = [];
   for (const source of sources) {
     try {
@@ -415,6 +430,7 @@ export async function writeBookmarkSummary(
         fallbackExcerpt: parsed.excerpt,
         url: parsed.url,
         log,
+        env,
       });
       entries.push({
         tweetId: parsed.tweetId,

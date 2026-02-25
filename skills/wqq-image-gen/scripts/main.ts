@@ -1,9 +1,12 @@
 import path from "node:path";
 import process from "node:process";
-import { homedir } from "node:os";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import type { CliArgs, Provider } from "./types";
 import { retryWithBackoff, formatError } from "../../shared/retry";
+import {
+  applyFileOnlyKeysToProcessEnv,
+  loadWqqSkillsEnvFile,
+} from "../../shared/wqq-skills-env";
 
 function printUsage(): void {
   console.log(`Usage:
@@ -34,7 +37,7 @@ Environment variables:
   OPENAI_BASE_URL           Custom OpenAI endpoint
   GOOGLE_BASE_URL           Custom Google endpoint
 
-Env file load order: CLI args > process.env > ~/.wqq-skills/.env`);
+Env file: ~/.wqq-skills/.env (for API keys & endpoints)`);
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -179,39 +182,24 @@ function parseArgs(argv: string[]): CliArgs {
   return out;
 }
 
-async function loadEnvFile(p: string): Promise<Record<string, string>> {
-  try {
-    const content = await readFile(p, "utf8");
-    const env: Record<string, string> = {};
-    for (const line of content.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const idx = trimmed.indexOf("=");
-      if (idx === -1) continue;
-      const key = trimmed.slice(0, idx).trim();
-      let val = trimmed.slice(idx + 1).trim();
-      if (
-        (val.startsWith('"') && val.endsWith('"')) ||
-        (val.startsWith("'") && val.endsWith("'"))
-      ) {
-        val = val.slice(1, -1);
-      }
-      env[key] = val;
-    }
-    return env;
-  } catch {
-    return {};
-  }
-}
-
 async function loadEnv(): Promise<void> {
-  const home = homedir();
+  const homeEnv = await loadWqqSkillsEnvFile();
 
-  const homeEnv = await loadEnvFile(path.join(home, ".wqq-skills", ".env"));
+  const fileOnlyKeys = [
+    "OPENAI_API_KEY",
+    "OPENAI_BASE_URL",
+    "GEMINI_API_KEY",
+    "GOOGLE_BASE_URL",
+    "GOOGLE_IMAGE_MODEL",
+  ] as const;
+  const fileOnlyKeySet = new Set<string>(fileOnlyKeys);
 
-  // Priority: process.env > homeEnv
-  for (const [k, v] of Object.entries(homeEnv)) {
-    if (!process.env[k]) process.env[k] = v;
+  applyFileOnlyKeysToProcessEnv(homeEnv, fileOnlyKeys);
+
+  // Keep legacy behavior for other keys: fill missing values from ~/.wqq-skills/.env.
+  for (const [key, value] of Object.entries(homeEnv)) {
+    if (fileOnlyKeySet.has(key)) continue;
+    if (!process.env[key]) process.env[key] = value;
   }
 }
 
@@ -254,8 +242,8 @@ function detectProvider(args: CliArgs): Provider {
   if (hasGoogle && hasOpenai) return "google";
 
   throw new Error(
-    "No API key found. Set GOOGLE_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY.\n" +
-      "Create ~/.wqq-skills/.env with your keys.",
+    "No API key found in ~/.wqq-skills/.env.\n" +
+      "Set GOOGLE_API_KEY (or GEMINI_API_KEY) or OPENAI_API_KEY in that file.",
   );
 }
 

@@ -207,17 +207,35 @@ Body`
     );
 
     const originalApiKey = process.env.OPENAI_API_KEY;
-    delete process.env.OPENAI_API_KEY;
+    const originalBaseUrl = process.env.OPENAI_BASE_URL;
+    const originalHome = process.env.HOME;
+    const fakeHome = await mkdtemp(path.join(tmpdir(), "wqq-home-"));
+
+    process.env.HOME = fakeHome;
+    process.env.OPENAI_API_KEY = "env-key";
+    process.env.OPENAI_BASE_URL = "https://env.example/v1";
 
     try {
       await expect(
         writeBookmarkSummary(out, [{ tweetId: "1", markdownPath: path.join(itemDir, "1.md") }])
       ).rejects.toThrow("OPENAI_API_KEY");
     } finally {
+      if (originalHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = originalHome;
+      }
+
       if (originalApiKey === undefined) {
         delete process.env.OPENAI_API_KEY;
       } else {
         process.env.OPENAI_API_KEY = originalApiKey;
+      }
+
+      if (originalBaseUrl === undefined) {
+        delete process.env.OPENAI_BASE_URL;
+      } else {
+        process.env.OPENAI_BASE_URL = originalBaseUrl;
       }
     }
   });
@@ -240,6 +258,8 @@ Body`
     const originalFetch = globalThis.fetch;
     const originalApiKey = process.env.OPENAI_API_KEY;
     const originalBaseUrl = process.env.OPENAI_BASE_URL;
+    const originalHome = process.env.HOME;
+    const fakeHome = await mkdtemp(path.join(tmpdir(), "wqq-home-"));
     const calls: string[] = [];
 
     globalThis.fetch = ((async (input: string | URL | Request) => {
@@ -261,8 +281,15 @@ Body`
       );
     }) as unknown) as typeof fetch;
 
-    process.env.OPENAI_API_KEY = "test-key";
-    process.env.OPENAI_BASE_URL = "https://api.openai.com/v1";
+    await mkdir(path.join(fakeHome, ".wqq-skills"), { recursive: true });
+    await Bun.write(
+      path.join(fakeHome, ".wqq-skills", ".env"),
+      "OPENAI_API_KEY=file-key\nOPENAI_BASE_URL=https://file.example/v1\n",
+    );
+
+    process.env.HOME = fakeHome;
+    process.env.OPENAI_API_KEY = "env-key";
+    process.env.OPENAI_BASE_URL = "https://env.example/v1";
 
     try {
       const summaryPath = await writeBookmarkSummary(out, [{ tweetId: "1", markdownPath: path.join(itemDir, "1.md") }]);
@@ -270,9 +297,15 @@ Body`
 
       expect(text).toContain("一句话摘要：AI 摘要");
       expect(text).toContain("相关性说明：AI 相关性");
-      expect(calls).toEqual(["https://api.openai.com/v1/responses"]);
+      expect(calls).toEqual(["https://file.example/v1/responses"]);
     } finally {
       globalThis.fetch = originalFetch;
+      if (originalHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = originalHome;
+      }
+
       if (originalApiKey === undefined) {
         delete process.env.OPENAI_API_KEY;
       } else {

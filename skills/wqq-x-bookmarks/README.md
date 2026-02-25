@@ -49,15 +49,17 @@ npx -y bun skills/wqq-x-bookmarks/scripts/main.ts --limit 10 --with-summary
 - 相关性说明
 - 来源链接
 
-环境变量：
+配置（`~/.wqq-skills/.env`）：
 
 ```bash
-export OPENAI_API_KEY="..."
-# 可选，默认 https://api.openai.com/v1
-export OPENAI_BASE_URL="https://api.openai.com/v1"
-# 可选，默认 gpt-4o-mini
-export OPENAI_MODEL="gpt-4o-mini"
+mkdir -p ~/.wqq-skills
+cat >> ~/.wqq-skills/.env << 'EOF'
+OPENAI_API_KEY=...
+OPENAI_BASE_URL=https://api.openai.com/v1
+EOF
 ```
+
+可选：`OPENAI_MODEL`（默认 `gpt-4o-mini`，可用环境变量覆盖）。
 
 行为说明：
 - 缺少 `OPENAI_API_KEY`：直接报错

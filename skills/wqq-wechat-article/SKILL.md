@@ -246,7 +246,3 @@ wechat-article/<topic-slug>/
 - **Past articles (optional)**: `WQQ_PAST_ARTICLES_DIR`（未配置则跳过）
 - Tutorial template: [references/tutorial-template.md](references/tutorial-template.md)
 - Infographic prompt template: [references/infographic-prompt-template.md](references/infographic-prompt-template.md)
-
-## Extension Support
-
-Custom configurations via EXTEND.md. See Preferences sections in individual execution skills.

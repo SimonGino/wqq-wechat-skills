@@ -1,3 +1,5 @@
+import { buildEnvWithFileOnlyKeysFromWqqSkillsEnv } from "../../shared/wqq-skills-env";
+
 export type TranslateMarkdownOptions = {
   fetchImpl?: typeof fetch;
   env?: NodeJS.ProcessEnv;
@@ -18,9 +20,11 @@ type PreservedSegments = {
 };
 
 const OPENAI_API_KEY_MISSING_ERROR =
-  "Missing OPENAI_API_KEY. Set OPENAI_API_KEY to enable English->Chinese translation.";
+  "Missing OPENAI_API_KEY. Set it in ~/.wqq-skills/.env to enable English->Chinese translation.";
 const TRANSLATE_SYSTEM_PROMPT =
   "Translate English Markdown content to Simplified Chinese. Preserve Markdown structure exactly. Do not translate URLs, local file paths, code fences, inline code, or placeholder tokens like __WQQ_KEEP_N__. Output only translated Markdown with no explanation.";
+
+const FILE_ONLY_ENV_KEYS = ["OPENAI_API_KEY", "OPENAI_BASE_URL"] as const;
 
 function splitFrontmatter(markdown: string): { frontmatter: string; body: string } {
   const match = markdown.match(/^---\n[\s\S]*?\n---\n?/);
@@ -222,7 +226,13 @@ export async function translateMarkdownToChinese(
     return markdown;
   }
 
-  const env = options.env || process.env;
+  const env =
+    options.env ||
+    (await buildEnvWithFileOnlyKeysFromWqqSkillsEnv(
+      FILE_ONLY_ENV_KEYS,
+      process.env,
+      process.env.HOME,
+    ));
   const fetchImpl = options.fetchImpl || fetch;
   const log = options.log;
 
