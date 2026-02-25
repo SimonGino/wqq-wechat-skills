@@ -100,24 +100,27 @@ export async function loadXCookies(
   log?: (message: string) => void,
   options: LoadXCookiesOptions = {}
 ): Promise<XCookieMap> {
-  const envCookieMap = buildEnvCookieMap();
-  if (hasRequiredXCookies(envCookieMap)) {
-    logLoadedCookieKeys(log, envCookieMap);
-    return envCookieMap;
+  // Priority 1: Chrome browser extraction
+  const loadFromBrowser = options.loadFromBrowser ?? (() => loadXCookiesFromBrowserLogin(log));
+  const browserCookieMap = normalizeCookieMap(await loadFromBrowser());
+  if (hasRequiredXCookies(browserCookieMap)) {
+    logLoadedCookieKeys(log, browserCookieMap);
+    return browserCookieMap;
   }
 
+  // Priority 2: Cookie file
   const cookiePath = options.cookiePath ?? resolveXRuntimeCookiePath();
   const readFromFile = options.readFromFile ?? readCookieFile;
   const fileCookieMap = normalizeCookieMap(await readFromFile(cookiePath));
-  const fileAndEnvCookieMap = { ...fileCookieMap, ...envCookieMap };
-  if (hasRequiredXCookies(fileAndEnvCookieMap)) {
-    logLoadedCookieKeys(log, fileAndEnvCookieMap);
-    return fileAndEnvCookieMap;
+  const fileAndBrowserCookieMap = { ...browserCookieMap, ...fileCookieMap };
+  if (hasRequiredXCookies(fileAndBrowserCookieMap)) {
+    logLoadedCookieKeys(log, fileAndBrowserCookieMap);
+    return fileAndBrowserCookieMap;
   }
 
-  const loadFromBrowser = options.loadFromBrowser ?? (() => loadXCookiesFromBrowserLogin(log));
-  const browserCookieMap = normalizeCookieMap(await loadFromBrowser());
-  const combined = { ...fileCookieMap, ...browserCookieMap, ...envCookieMap };
+  // Priority 3: Environment variables
+  const envCookieMap = buildEnvCookieMap();
+  const combined = { ...browserCookieMap, ...fileCookieMap, ...envCookieMap };
   logLoadedCookieKeys(log, combined);
   return combined;
 }

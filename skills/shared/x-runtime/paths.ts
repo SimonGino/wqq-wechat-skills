@@ -1,7 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 
-const APP_DATA_DIR = "baoyu-skills";
+const APP_DATA_DIR = "wqq-skills";
 const X_TO_MARKDOWN_DATA_DIR = "x-to-markdown";
 const COOKIE_FILE_NAME = "cookies.json";
 const PROFILE_DIR_NAME = "chrome-profile";
