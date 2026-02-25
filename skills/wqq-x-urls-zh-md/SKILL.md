@@ -9,10 +9,7 @@ description: Use when the user provides one or more X/Twitter status URLs and wa
 
 ## Prerequisites
 
-- X 登录态（任一方式）
-  - 环境变量：`X_AUTH_TOKEN` + `X_CT0`
-  - 或 `X_COOKIE_HEADER`
-  - 或本机 Chrome cookies（脚本会尝试读取）
+- 无需 X 登录态（使用 fxtwitter 公共 API）
 - OpenAI 翻译配置
   - `OPENAI_API_KEY` / `OPENAI_BASE_URL` 从 `~/.wqq-skills/.env` 读取（`OPENAI_BASE_URL` 默认 `https://api.openai.com/v1`）
   - 可选：`OPENAI_MODEL`（默认 `gpt-4o-mini`，可用环境变量覆盖）

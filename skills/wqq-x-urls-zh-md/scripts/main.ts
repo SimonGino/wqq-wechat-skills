@@ -1,9 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { hasRequiredXCookies, loadXCookies } from "../../shared/x-runtime/cookies";
+import { fxtweetToMarkdown } from "../../shared/x-runtime/fxtwitter";
 import { localizeMarkdownMedia } from "../../shared/x-runtime/media-localizer";
-import { tweetToMarkdown } from "../../shared/x-runtime/tweet-to-markdown";
 import {
   buildTweetOutputDirName,
   findExistingTweetMarkdownPath,
@@ -14,8 +13,7 @@ import { translateMarkdownToChinese } from "./translate";
 import type { ExportArgs, ExportSummary } from "./types";
 
 type RuntimeDeps = {
-  loadCookies: typeof loadXCookies;
-  tweetToMarkdownImpl: typeof tweetToMarkdown;
+  tweetToMarkdownImpl: typeof fxtweetToMarkdown;
   localizeMarkdownMediaImpl: typeof localizeMarkdownMedia;
   translateMarkdownToChineseImpl: typeof translateMarkdownToChinese;
 };
@@ -99,19 +97,8 @@ function parseTweetIdFromUrl(input: string): string | null {
   }
 }
 
-function toCookieRecord(cookieMap: Record<string, string | undefined>): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(cookieMap)) {
-    if (typeof value === "string" && value.trim()) {
-      out[key] = value;
-    }
-  }
-  return out;
-}
-
 async function exportSingleUrl(
   url: string,
-  cookieMap: Record<string, string>,
   args: ExportArgs,
   deps: RuntimeDeps,
   log: (message: string) => void,
@@ -129,7 +116,7 @@ async function exportSingleUrl(
   }
 
   try {
-    let markdown = await deps.tweetToMarkdownImpl(url, { log, cookieMap });
+    let markdown = await deps.tweetToMarkdownImpl(url, { log });
     markdown = await deps.translateMarkdownToChineseImpl(markdown, { log });
 
     const dirName = buildTweetOutputDirName(tweetId, markdown);
@@ -162,25 +149,17 @@ export async function runXUrlsZhExport(
   const log = console.log;
 
   const deps: RuntimeDeps = {
-    loadCookies: overrides.loadCookies ?? loadXCookies,
-    tweetToMarkdownImpl: overrides.tweetToMarkdownImpl ?? tweetToMarkdown,
+    tweetToMarkdownImpl: overrides.tweetToMarkdownImpl ?? fxtweetToMarkdown,
     localizeMarkdownMediaImpl:
       overrides.localizeMarkdownMediaImpl ?? localizeMarkdownMedia,
     translateMarkdownToChineseImpl:
       overrides.translateMarkdownToChineseImpl ?? translateMarkdownToChinese,
   };
 
-  log("[x-urls-zh-md] loading cookies");
-  const rawCookies = await deps.loadCookies(log);
-  if (!hasRequiredXCookies(rawCookies)) {
-    throw new Error("Missing auth cookies. Provide X_AUTH_TOKEN and X_CT0.");
-  }
-  const cookieMap = toCookieRecord(rawCookies);
-
   const summary: ExportSummary = { success: 0, skipped: 0, failed: 0 };
 
   for (const url of args.urls) {
-    const status = await exportSingleUrl(url, cookieMap, args, deps, log);
+    const status = await exportSingleUrl(url, args, deps, log);
     summary[status] += 1;
   }
 

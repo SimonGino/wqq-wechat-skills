@@ -38,7 +38,6 @@ describe("runXUrlsZhExport", () => {
     const summary = await runXUrlsZhExport(
       ["--urls", "https://x.com/alice/status/123", "--output", outdir],
       {
-        loadCookies: async () => ({ auth_token: "a", ct0: "b" }),
         tweetToMarkdownImpl: async () => `---
 url: "https://x.com/alice/status/123"
 authorUsername: "alice"
@@ -79,7 +78,6 @@ English body`,
     const summary = await runXUrlsZhExport(
       ["--urls", "https://x.com/alice/status/123", "--output", outdir],
       {
-        loadCookies: async () => ({ auth_token: "a", ct0: "b" }),
         tweetToMarkdownImpl: async () => {
           calls += 1;
           return "# should-not-run";
