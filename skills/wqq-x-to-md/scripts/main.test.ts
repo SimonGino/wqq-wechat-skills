@@ -2,13 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { parseExportArgs, runXUrlsZhExport } from "./main";
+import { parseExportArgs, runExport } from "./main";
 
 describe("parseExportArgs", () => {
   test("uses defaults", () => {
     const args = parseExportArgs(["--urls", "https://x.com/a/status/1"]);
     expect(args.downloadMedia).toBe(true);
-    expect(args.outputDir.endsWith("wqq-x-urls-zh-md-output")).toBe(true);
+    expect(args.outputDir.endsWith("wqq-x-to-md-output")).toBe(true);
     expect(args.urls).toEqual(["https://x.com/a/status/1"]);
   });
 
@@ -31,11 +31,11 @@ describe("parseExportArgs", () => {
   });
 });
 
-describe("runXUrlsZhExport", () => {
-  test("exports translated markdown and writes per-tweet output", async () => {
-    const outdir = await mkdtemp(path.join(tmpdir(), "x-urls-zh-md-"));
+describe("runExport", () => {
+  test("exports markdown with summary and writes per-tweet output", async () => {
+    const outdir = await mkdtemp(path.join(tmpdir(), "x-to-md-"));
 
-    const summary = await runXUrlsZhExport(
+    const summary = await runExport(
       ["--urls", "https://x.com/alice/status/123", "--output", outdir],
       {
         tweetToMarkdownImpl: async () => `---
@@ -45,7 +45,7 @@ authorUsername: "alice"
 
 # Hello thread
 
-English body`,
+English body with enough content to summarize.`,
         localizeMarkdownMediaImpl: async (markdown) => ({
           markdown,
           downloadedImages: 0,
@@ -53,8 +53,10 @@ English body`,
           imageDir: null,
           videoDir: null,
         }),
-        translateMarkdownToChineseImpl: async (markdown) =>
-          markdown.replace("Hello thread", "你好线程").replace("English body", "中文正文"),
+        summarizeImpl: async (markdown) =>
+          markdown
+            .replace("\n---\n", '\nsummary: "测试摘要"\n---\n')
+            .replace("# Hello thread\n\n", "# Hello thread\n\n> 测试摘要\n\n"),
       },
     );
 
@@ -64,18 +66,19 @@ English body`,
     expect(children.length).toBe(1);
     const itemDir = path.join(outdir, children[0]!);
     const markdown = await readFile(path.join(itemDir, "123.md"), "utf8");
-    expect(markdown).toContain("你好线程");
-    expect(markdown).toContain("中文正文");
+    expect(markdown).toContain("测试摘要");
+    expect(markdown).toContain("# Hello thread");
+    expect(markdown).toContain("English body");
   });
 
   test("skips when markdown already exists for tweet id", async () => {
-    const outdir = await mkdtemp(path.join(tmpdir(), "x-urls-zh-md-"));
+    const outdir = await mkdtemp(path.join(tmpdir(), "x-to-md-"));
     const existingDir = path.join(outdir, "20260225-100000-demo-alice-123");
     await mkdir(existingDir, { recursive: true });
     await writeFile(path.join(existingDir, "123.md"), "# existing", "utf8");
 
     let calls = 0;
-    const summary = await runXUrlsZhExport(
+    const summary = await runExport(
       ["--urls", "https://x.com/alice/status/123", "--output", outdir],
       {
         tweetToMarkdownImpl: async () => {

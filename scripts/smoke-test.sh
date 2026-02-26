@@ -78,9 +78,9 @@ else
   exit 1
 fi
 
-# Test 9: wqq-x-urls-zh-md help
-echo -n "Testing wqq-x-urls-zh-md --help... "
-output=$(bun skills/wqq-x-urls-zh-md/scripts/main.ts --help 2>&1)
+# Test 9: wqq-x-to-md help
+echo -n "Testing wqq-x-to-md --help... "
+output=$(bun skills/wqq-x-to-md/scripts/main.ts --help 2>&1)
 if echo "$output" | grep -q "Usage:"; then
   echo -e "${GREEN}✓${NC}"
 else

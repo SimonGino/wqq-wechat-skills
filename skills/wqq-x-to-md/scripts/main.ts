@@ -9,26 +9,26 @@ import {
   resolveTweetOutputPath,
   shouldSkipTweetOutput,
 } from "../../wqq-x-bookmarks/scripts/output";
-import { translateMarkdownToChinese } from "./translate";
+import { summarizeMarkdownToChinese } from "./summarize";
 import type { ExportArgs, ExportSummary } from "./types";
 
 type RuntimeDeps = {
   tweetToMarkdownImpl: typeof fxtweetToMarkdown;
   localizeMarkdownMediaImpl: typeof localizeMarkdownMedia;
-  translateMarkdownToChineseImpl: typeof translateMarkdownToChinese;
+  summarizeImpl: typeof summarizeMarkdownToChinese;
 };
 
 function printUsage(): void {
   console.log("Usage:");
   console.log(
-    "  npx -y bun skills/wqq-x-urls-zh-md/scripts/main.ts --urls <url1> <url2> ... [--output <dir>] [--no-download-media]",
+    "  npx -y bun skills/wqq-x-to-md/scripts/main.ts --urls <url1> <url2> ... [--output <dir>] [--no-download-media]",
   );
 }
 
 export function parseExportArgs(argv: string[]): ExportArgs {
   const args: ExportArgs = {
     urls: [],
-    outputDir: path.resolve(process.cwd(), "wqq-x-urls-zh-md-output"),
+    outputDir: path.resolve(process.cwd(), "wqq-x-to-md-output"),
     downloadMedia: true,
   };
 
@@ -105,19 +105,19 @@ async function exportSingleUrl(
 ): Promise<"success" | "skipped" | "failed"> {
   const tweetId = parseTweetIdFromUrl(url);
   if (!tweetId) {
-    log(`[x-urls-zh-md] failed: invalid tweet url (${url})`);
+    log(`[x-to-md] failed: invalid tweet url (${url})`);
     return "failed";
   }
 
   const existingPath = findExistingTweetMarkdownPath(args.outputDir, tweetId);
   if (shouldSkipTweetOutput(existingPath ?? "", Boolean(existingPath))) {
-    log(`[x-urls-zh-md] skipped: ${tweetId} (exists: ${existingPath})`);
+    log(`[x-to-md] skipped: ${tweetId} (exists: ${existingPath})`);
     return "skipped";
   }
 
   try {
     let markdown = await deps.tweetToMarkdownImpl(url, { log });
-    markdown = await deps.translateMarkdownToChineseImpl(markdown, { log });
+    markdown = await deps.summarizeImpl(markdown, { log });
 
     const dirName = buildTweetOutputDirName(tweetId, markdown);
     const markdownPath = resolveTweetOutputPath(args.outputDir, dirName, tweetId);
@@ -132,16 +132,16 @@ async function exportSingleUrl(
     }
 
     await writeFile(markdownPath, markdown, "utf8");
-    log(`[x-urls-zh-md] success: ${tweetId} -> ${markdownPath}`);
+    log(`[x-to-md] success: ${tweetId} -> ${markdownPath}`);
     return "success";
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    log(`[x-urls-zh-md] failed: ${tweetId} (${message})`);
+    log(`[x-to-md] failed: ${tweetId} (${message})`);
     return "failed";
   }
 }
 
-export async function runXUrlsZhExport(
+export async function runExport(
   argv: string[],
   overrides: Partial<RuntimeDeps> = {},
 ): Promise<ExportSummary> {
@@ -152,8 +152,7 @@ export async function runXUrlsZhExport(
     tweetToMarkdownImpl: overrides.tweetToMarkdownImpl ?? fxtweetToMarkdown,
     localizeMarkdownMediaImpl:
       overrides.localizeMarkdownMediaImpl ?? localizeMarkdownMedia,
-    translateMarkdownToChineseImpl:
-      overrides.translateMarkdownToChineseImpl ?? translateMarkdownToChinese,
+    summarizeImpl: overrides.summarizeImpl ?? summarizeMarkdownToChinese,
   };
 
   const summary: ExportSummary = { success: 0, skipped: 0, failed: 0 };
@@ -164,7 +163,7 @@ export async function runXUrlsZhExport(
   }
 
   log(
-    `[x-urls-zh-md] done. success=${summary.success}, skipped=${summary.skipped}, failed=${summary.failed}, output=${args.outputDir}`,
+    `[x-to-md] done. success=${summary.success}, skipped=${summary.skipped}, failed=${summary.failed}, output=${args.outputDir}`,
   );
   return summary;
 }
@@ -174,7 +173,7 @@ const isCliExecution =
   fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 
 if (isCliExecution) {
-  runXUrlsZhExport(process.argv.slice(2)).catch((error) => {
+  runExport(process.argv.slice(2)).catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
   });
