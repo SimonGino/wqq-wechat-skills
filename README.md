@@ -4,7 +4,7 @@
 - `wqq-wechat-article`：把素材整理成教程型公众号文章
 - `wqq-image-gen`：生成封面图与信息图（OpenAI / Google）
 - `wqq-x-bookmarks`：导出 X 书签为 Markdown（支持 debug、skip、`--with-summary` AI 汇总）
-- `wqq-x-urls-zh-md`：将指定 X 链接导出为 Markdown，并在英文内容时自动翻译为中文
+- `wqq-x-to-md`：将指定 X 链接导出为 Markdown，保留原文并自动生成中文摘要
 
 ## MVP 能力
 
@@ -54,10 +54,10 @@ npx -y bun skills/wqq-x-bookmarks/scripts/main.ts --limit 10 --with-summary --ou
 - 缺少 `OPENAI_API_KEY` 会直接报错
 - OpenAI 请求失败时自动回退到规则摘要，不影响其他条目导出
 
-### 4) 指定 X 链接导出（自动英译中）
+### 4) 指定 X 链接导出（自动生成中文摘要）
 
 ```bash
-npx -y bun skills/wqq-x-urls-zh-md/scripts/main.ts \
+npx -y bun skills/wqq-x-to-md/scripts/main.ts \
   --urls \
   https://x.com/elvissun/status/2025920521871716562 \
   https://x.com/wangzan101/status/2025948108098854969
@@ -66,7 +66,7 @@ npx -y bun skills/wqq-x-urls-zh-md/scripts/main.ts \
 导出后可直接作为 `wqq-wechat-article` 的 workspace：
 
 ```bash
-npx -y bun skills/wqq-wechat-article/scripts/main.ts --workspace ./wqq-x-urls-zh-md-output
+npx -y bun skills/wqq-wechat-article/scripts/main.ts --workspace ./wqq-x-to-md-output
 ```
 
 ## 推荐工作流（MVP）
@@ -171,7 +171,7 @@ EOF
   - file-only：`OPENAI_API_KEY` / `OPENAI_BASE_URL` / `GEMINI_API_KEY` / `GOOGLE_BASE_URL` / `GOOGLE_IMAGE_MODEL`
   - 且 `OPENAI_BASE_URL/GOOGLE_BASE_URL` 必填。
 - `wqq-x-bookmarks` 的 `--with-summary` 会从 `~/.wqq-skills/.env` 读取 `OPENAI_API_KEY/OPENAI_BASE_URL`。
-- `wqq-x-urls-zh-md` 的英译中会从 `~/.wqq-skills/.env` 读取 `OPENAI_API_KEY/OPENAI_BASE_URL`。
+- `wqq-x-to-md` 的中文摘要会从 `~/.wqq-skills/.env` 读取 `OPENAI_API_KEY/OPENAI_BASE_URL`。
 - `wqq-wechat-article` 会读取 `WQQ_PAST_ARTICLES_DIR`：
   - 配置且目录存在：读取该目录下的历史文章作为风格参考
   - 未配置：跳过历史文章步骤（不会再去猜测其他目录）
@@ -203,7 +203,7 @@ skills/
   wqq-image-gen/       # 图片生成技能
   wqq-wechat-article/  # 文章生成技能
   wqq-x-bookmarks/     # X 书签导出技能
-  wqq-x-urls-zh-md/    # 指定 X 链接导出 + 英译中
+  wqq-x-to-md/        # 指定 X 链接导出 + 中文摘要
 scripts/
   smoke-test.sh        # 冒烟测试脚本
 ```
