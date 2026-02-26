@@ -97,6 +97,13 @@ function resolveEntityMediaLines(
   const value = entry?.value;
   if (!value) return [];
   const type = value.type;
+
+  if (type === "MARKDOWN") {
+    const md = value.data?.markdown?.trim();
+    if (md) return md.split("\n");
+    return [];
+  }
+
   if (type !== "MEDIA" && type !== "IMAGE") return [];
 
   const caption = normalizeCaption(value.data?.caption);
