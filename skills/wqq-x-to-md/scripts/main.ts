@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { fxtweetToMarkdown } from "../../shared/x-runtime/fxtwitter";
 import { localizeMarkdownMedia } from "../../shared/x-runtime/media-localizer";
+import { getXOutputBaseDir } from "../../shared/wqq-skills-env";
 import {
   buildTweetOutputDirName,
   findExistingTweetMarkdownPath,
@@ -28,7 +29,7 @@ function printUsage(): void {
 export function parseExportArgs(argv: string[]): ExportArgs {
   const args: ExportArgs = {
     urls: [],
-    outputDir: path.resolve(process.cwd(), "wqq-x-to-md-output"),
+    outputDir: path.resolve(getXOutputBaseDir(), "wqq-x-to-md-output"),
     downloadMedia: true,
   };
 

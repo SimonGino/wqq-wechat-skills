@@ -1,6 +1,7 @@
 import path from "node:path";
 import process from "node:process";
 import { homedir } from "node:os";
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 
 export type DotEnvRecord = Record<string, string>;
@@ -87,4 +88,19 @@ export async function buildEnvWithFileOnlyKeysFromWqqSkillsEnv(
   const env: NodeJS.ProcessEnv = { ...baseEnv };
   applyFileOnlyKeysToEnvObject(env, fileEnv, keys);
   return env;
+}
+
+export function loadDotEnvFileSync(filePath: string): DotEnvRecord {
+  try {
+    const content = readFileSync(filePath, "utf8");
+    return parseDotEnv(content);
+  } catch {
+    return {};
+  }
+}
+
+export function getXOutputBaseDir(homeDir?: string): string {
+  const envPath = getWqqSkillsEnvFilePath(homeDir);
+  const env = loadDotEnvFileSync(envPath);
+  return env.X_OUTPUT_DIR || process.cwd();
 }

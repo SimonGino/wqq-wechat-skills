@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { hasRequiredXCookies, loadXCookies } from "../../shared/x-runtime/cookies";
 import { localizeMarkdownMedia } from "../../shared/x-runtime/media-localizer";
 import { tweetToMarkdown } from "../../shared/x-runtime/tweet-to-markdown";
+import { getXOutputBaseDir } from "../../shared/wqq-skills-env";
 import { fetchBookmarksPage } from "./bookmarks-api";
 import { extractBookmarkPageDetails } from "./bookmarks-parser";
 import {
@@ -33,7 +34,7 @@ function printUsage(): void {
 export function parseExportArgs(argv: string[]): ExportArgs {
   const args: ExportArgs = {
     limit: 50,
-    outputDir: path.resolve(process.cwd(), "wqq-x-bookmarks-output"),
+    outputDir: path.resolve(getXOutputBaseDir(), "wqq-x-bookmarks-output"),
     downloadMedia: true,
     withSummary: false,
   };
