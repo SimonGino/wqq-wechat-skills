@@ -98,9 +98,3 @@ export function loadDotEnvFileSync(filePath: string): DotEnvRecord {
     return {};
   }
 }
-
-export function getXOutputBaseDir(homeDir?: string): string {
-  const envPath = getWqqSkillsEnvFilePath(homeDir);
-  const env = loadDotEnvFileSync(envPath);
-  return env.X_OUTPUT_DIR || process.cwd();
-}
