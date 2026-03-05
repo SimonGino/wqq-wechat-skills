@@ -33,13 +33,21 @@ WQQ_PAST_ARTICLES_DIR=/absolute/path/to/your/past-articles
 ```
 
 执行规则（必须严格遵循）：
-1. 若变量已配置且目录存在：从该目录中选择 1-2 篇与当前主题最相关的文章作为范例。
+1. 若变量已配置且目录存在：按以下选择流程挑选 1-2 篇文章作为范例。
 2. 若变量未配置：**直接跳过历史文章步骤**，不要猜测或搜索其他仓库/目录。
 3. 若变量已配置但目录不存在：提示路径无效并跳过，不要回退到任何默认目录。
 
-如果执行了历史文章步骤，选择标准如下：
-- 优先选择主题相近的（如都是工具教程、都是配置指南）
-- 优先选择结构相似的（如都是长文、都是快速指南）
+选择流程（必须严格遵循）：
+
+1. 检查目录下是否存在 `engagement.yaml`。
+2. 若存在：读取该文件，按 `score` 降序取前 10 篇文章作为**候选池**。
+3. 从候选池中按"主题相近 + 结构相似"选 1-2 篇。
+4. 若 `engagement.yaml` 不存在：回退到全量文章，按"主题相近 + 结构相似"选择。
+
+选择时优先：
+- 主题相近的（如都是工具教程、都是配置指南）
+- 结构相似的（如都是长文、都是快速指南）
+- 高 engagement 的文章代表被验证过的写作模式，应优先参考
 
 读取后，提取该文章的：
 - 章节结构
@@ -244,5 +252,6 @@ wechat-article/<topic-slug>/
 
 - **Style guide (MUST READ FIRST)**: [../../references/style-guide.md](../../references/style-guide.md)
 - **Past articles (optional)**: `WQQ_PAST_ARTICLES_DIR`（未配置则跳过）
+- **Engagement data (optional)**: `WQQ_PAST_ARTICLES_DIR/engagement.yaml`（按 score 降序取前 10 作为候选池）
 - Tutorial template: [references/tutorial-template.md](references/tutorial-template.md)
 - Infographic prompt template: [references/infographic-prompt-template.md](references/infographic-prompt-template.md)
